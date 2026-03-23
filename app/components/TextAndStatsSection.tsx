@@ -1,8 +1,9 @@
 "use client";
 
 import { ChangeEvent } from "react";
+import { ReactNode } from "react";
 
-import { CardState, iconSuggestions } from "../card-builder";
+import { CardState } from "../card-builder";
 
 type FieldChangeHandler = (
   key: keyof CardState,
@@ -14,8 +15,8 @@ type FieldChangeHandler = (
 
 type TextAndStatsSectionProps = {
   card: CardState;
+  iconManager?: ReactNode;
   onFieldChange: FieldChangeHandler;
-  onIconSuggestion: (icon: string) => void;
   onDescriptionAlignChange: (align: CardState["descriptionAlign"]) => void;
   onDescriptionPositionChange: (
     position: CardState["descriptionPosition"],
@@ -24,50 +25,30 @@ type TextAndStatsSectionProps = {
 
 export function TextAndStatsSection({
   card,
+  iconManager,
   onFieldChange,
-  onIconSuggestion,
   onDescriptionAlignChange,
   onDescriptionPositionChange,
 }: TextAndStatsSectionProps) {
   return (
     <>
-      <div className="space-y-3">
-        <label className="text-sm font-medium text-slate-200" htmlFor="title">
-          Title
-        </label>
-        <input
-          id="title"
-          value={card.title}
-          onChange={onFieldChange("title")}
-          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-        />
-      </div>
-
-      <div className="space-y-3">
-        <label className="text-sm font-medium text-slate-200" htmlFor="icon">
-          Icon
-        </label>
-        <div className="flex gap-3">
+      <div className="grid gap-6 xl:col-span-2 xl:grid-cols-[minmax(260px,1fr)_auto] xl:items-start">
+        <div className="min-w-0">
+          <label
+            className="mb-3 block text-sm font-medium text-slate-200"
+            htmlFor="title"
+          >
+            Title
+          </label>
           <input
-            id="icon"
-            value={card.icon}
-            onChange={onFieldChange("icon")}
-            maxLength={2}
-            className="w-20 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-center text-xl text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+            id="title"
+            value={card.title}
+            onChange={onFieldChange("title")}
+            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
           />
-          <div className="flex flex-wrap gap-2">
-            {iconSuggestions.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => onIconSuggestion(value)}
-                className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xl transition hover:border-cyan-300"
-              >
-                {value}
-              </button>
-            ))}
-          </div>
         </div>
+
+        {iconManager && <div className="min-w-[220px]">{iconManager}</div>}
       </div>
 
       <div className="space-y-3 xl:col-span-2">

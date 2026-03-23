@@ -38,7 +38,13 @@ export type CardRecord = {
 
 export type CardLibraryFile = {
   version: number;
+  settings: CardLibrarySettings;
   cards: CardRecord[];
+};
+
+export type CardLibrarySettings = {
+  iconSuggestions: string[];
+  defaultIcon: string;
 };
 
 export const defaultCard: CardState = {
@@ -51,11 +57,11 @@ export const defaultCard: CardState = {
   footerCenter: "0",
   footerRight: "0",
   cardBackground: "#0b1020",
-  artBackground: "#3f0004",
-  panelBackground: "#324379",
+  artBackground: "#11356f",
+  panelBackground: "#1f3d8d",
   frameAccent: "#4fa2ff",
   titleColor: "#f6f7ff",
-  bodyTextColor: "#f8f9ff",
+  bodyTextColor: "#eff6ff",
   artOffsetX: 50,
   artOffsetY: 50,
 };
@@ -113,10 +119,16 @@ export const cardThemes: CardTheme[] = [
   },
 ];
 
-export const iconSuggestions = ["💧", "🔥", "🌿", "☠", "⚡", "❄", "✨", "🛡"];
+export const iconSuggestions = ["💧", "🔥", "🌿", "✨", "🛡", "🟡", "🔵", "🔴"];
+
+export const defaultLibrarySettings: CardLibrarySettings = {
+  iconSuggestions,
+  defaultIcon: defaultCard.icon,
+};
 
 export const emptyLibraryFile: CardLibraryFile = {
   version: 1,
+  settings: defaultLibrarySettings,
   cards: [],
 };
 

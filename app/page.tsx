@@ -1,10 +1,12 @@
 "use client";
 
 import {
+  CardLibrarySettings,
   CardLibraryFile,
   CardRecord,
   CardState,
   cardThemes,
+  defaultLibrarySettings,
   defaultCard,
   emptyLibraryFile,
   ensureCardState,
@@ -12,6 +14,8 @@ import {
   sortByNewest,
   ThemeColorField,
 } from "./card-builder";
+import { IconManagerSection } from "./components/IconManagerSection";
+import { LibrarySection } from "./components/LibrarySection";
 import { TextAndStatsSection } from "./components/TextAndStatsSection";
 import { ThemeAppearanceSection } from "./components/ThemeAppearanceSection";
 import { toPng } from "html-to-image";
@@ -62,6 +66,7 @@ const DB_STORE = "settings";
 const DB_DIRECTORY_KEY = "cards-directory-handle";
 const DB_EXPORT_DIRECTORY_KEY = "export-directory-handle";
 const CARD_JSON_FILE = "cards.json";
+const LIBRARY_PAGE_SIZE = 24;
 
 type CardPreviewProps = {
   card: CardState;
@@ -395,8 +400,36 @@ async function readLibraryFile(
       return emptyLibraryFile;
     }
 
+    const parsedSettings =
+      typeof parsed.settings === "object" && parsed.settings !== null
+        ? (parsed.settings as Partial<CardLibrarySettings>)
+        : {};
+    const normalizedIconSuggestions = Array.isArray(
+      parsedSettings.iconSuggestions,
+    )
+      ? parsedSettings.iconSuggestions
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0)
+      : [];
+    const defaultIcon =
+      typeof parsedSettings.defaultIcon === "string" &&
+      parsedSettings.defaultIcon.trim().length > 0
+        ? parsedSettings.defaultIcon.trim()
+        : defaultLibrarySettings.defaultIcon;
+    const mergedIconSuggestions = Array.from(
+      new Set([...normalizedIconSuggestions, defaultIcon]),
+    );
+
     return {
       version: typeof parsed.version === "number" ? parsed.version : 1,
+      settings: {
+        iconSuggestions:
+          mergedIconSuggestions.length > 0
+            ? mergedIconSuggestions
+            : defaultLibrarySettings.iconSuggestions,
+        defaultIcon,
+      },
       cards: parsed.cards.reduce<CardRecord[]>((acc, entry) => {
         if (typeof entry !== "object" || entry === null) {
           return acc;
@@ -471,10 +504,15 @@ export default function Home() {
     cardThemes[0].id,
   );
   const [isColorControlsOpen, setIsColorControlsOpen] = useState(false);
+  const [librarySettings, setLibrarySettings] = useState<CardLibrarySettings>(
+    defaultLibrarySettings,
+  );
+  const [newIconValue, setNewIconValue] = useState("");
   const [artImage, setArtImage] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"builder" | "library">(
     "builder",
   );
+  const [currentLibraryPage, setCurrentLibraryPage] = useState(1);
   const [libraryCards, setLibraryCards] = useState<CardRecord[]>([]);
   const [directoryHandle, setDirectoryHandle] =
     useState<DirectoryHandleLike | null>(null);
@@ -494,13 +532,26 @@ export default function Home() {
   );
   const exportRef = useRef<HTMLDivElement | null>(null);
 
-  const isPickerSupported = useMemo(() => {
+  const [isPickerSupported, setIsPickerSupported] = useState(false);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
-      return false;
+      return;
     }
 
-    return "showDirectoryPicker" in (window as WindowWithDirectoryPicker);
+    setIsPickerSupported(
+      "showDirectoryPicker" in (window as WindowWithDirectoryPicker),
+    );
   }, []);
+
+  const totalLibraryPages = Math.max(
+    1,
+    Math.ceil(libraryCards.length / LIBRARY_PAGE_SIZE),
+  );
+  const paginatedLibraryCards = useMemo(() => {
+    const startIndex = (currentLibraryPage - 1) * LIBRARY_PAGE_SIZE;
+    return libraryCards.slice(startIndex, startIndex + LIBRARY_PAGE_SIZE);
+  }, [currentLibraryPage, libraryCards]);
 
   const reloadCardsFromFolder = async (
     nextHandle: DirectoryHandleLike,
@@ -508,7 +559,9 @@ export default function Home() {
   ) => {
     const data = await readLibraryFile(nextHandle);
     const sorted = sortByNewest(data.cards);
+    setLibrarySettings(data.settings);
     setLibraryCards(sorted);
+    setCurrentLibraryPage(1);
     setStorageMessage(
       `${statusPrefix} ${sorted.length} card${sorted.length === 1 ? "" : "s"}.`,
     );
@@ -588,6 +641,10 @@ export default function Home() {
     setIsColorControlsOpen(selectedThemeId === "");
   }, [selectedThemeId]);
 
+  useEffect(() => {
+    setCurrentLibraryPage((current) => Math.min(current, totalLibraryPages));
+  }, [totalLibraryPages]);
+
   const onFieldChange =
     (key: keyof CardState) =>
     (
@@ -627,6 +684,108 @@ export default function Home() {
       artOffsetX: x,
       artOffsetY: y,
     }));
+  };
+
+  const persistLibrarySettings = async (nextSettings: CardLibrarySettings) => {
+    if (!directoryHandle) {
+      return;
+    }
+
+    try {
+      const granted = await ensureDirectoryPermission(directoryHandle, true);
+      if (!granted) {
+        setStorageMessage(
+          "Cannot update icon settings without folder permission.",
+        );
+        return;
+      }
+
+      const currentLibrary = await readLibraryFile(directoryHandle);
+      await writeLibraryFile(directoryHandle, {
+        ...currentLibrary,
+        settings: nextSettings,
+      });
+      setStorageMessage("Updated folder icon settings.");
+    } catch {
+      setStorageMessage("Could not persist icon settings.");
+    }
+  };
+
+  const addLibraryIcon = () => {
+    const icon = newIconValue.trim();
+    if (!icon) {
+      return;
+    }
+
+    if (librarySettings.iconSuggestions.includes(icon)) {
+      setNewIconValue("");
+      return;
+    }
+
+    const nextSettings: CardLibrarySettings = {
+      ...librarySettings,
+      iconSuggestions: [...librarySettings.iconSuggestions, icon],
+    };
+    setLibrarySettings(nextSettings);
+    setNewIconValue("");
+    void persistLibrarySettings(nextSettings);
+  };
+
+  const reorderLibraryIcons = (fromIndex: number, toIndex: number) => {
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= librarySettings.iconSuggestions.length ||
+      toIndex >= librarySettings.iconSuggestions.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+
+    const nextIconSuggestions = [...librarySettings.iconSuggestions];
+    const [movedIcon] = nextIconSuggestions.splice(fromIndex, 1);
+    if (!movedIcon) {
+      return;
+    }
+
+    nextIconSuggestions.splice(toIndex, 0, movedIcon);
+
+    const nextSettings: CardLibrarySettings = {
+      iconSuggestions: nextIconSuggestions,
+      defaultIcon: nextIconSuggestions[0],
+    };
+
+    setLibrarySettings(nextSettings);
+    void persistLibrarySettings(nextSettings);
+  };
+
+  const removeLibraryIcon = (icon: string) => {
+    if (librarySettings.iconSuggestions.length <= 1) {
+      setStorageMessage(
+        "At least one icon must remain in the folder icon list.",
+      );
+      return;
+    }
+
+    const nextIconSuggestions = librarySettings.iconSuggestions.filter(
+      (value) => value !== icon,
+    );
+
+    const nextDefaultIcon =
+      librarySettings.defaultIcon === icon
+        ? nextIconSuggestions[0]
+        : librarySettings.defaultIcon;
+
+    const nextSettings: CardLibrarySettings = {
+      iconSuggestions: nextIconSuggestions,
+      defaultIcon: nextDefaultIcon,
+    };
+
+    setLibrarySettings(nextSettings);
+    if (card.icon === icon) {
+      setCard((current) => ({ ...current, icon: nextDefaultIcon }));
+    }
+    void persistLibrarySettings(nextSettings);
   };
 
   const onThemeColorFieldChange =
@@ -780,6 +939,8 @@ export default function Home() {
         nextLibrary.cards.push(nextRecord);
       }
 
+      nextLibrary.settings = librarySettings;
+
       await writeLibraryFile(directoryHandle, nextLibrary);
       const sorted = sortByNewest(nextLibrary.cards);
       setLibraryCards(sorted);
@@ -803,11 +964,26 @@ export default function Home() {
       return;
     }
 
+    const iconFromCard = normalizedCard.icon.trim();
+    let loadMessage = `Loaded ${record.name} from cards.json.`;
+    if (
+      iconFromCard &&
+      !librarySettings.iconSuggestions.includes(iconFromCard)
+    ) {
+      const nextSettings: CardLibrarySettings = {
+        ...librarySettings,
+        iconSuggestions: [...librarySettings.iconSuggestions, iconFromCard],
+      };
+      setLibrarySettings(nextSettings);
+      void persistLibrarySettings(nextSettings);
+      loadMessage = `Loaded ${record.name} from cards.json. Restored missing icon ${iconFromCard} to the folder icon list.`;
+    }
+
     setCard(normalizedCard);
     setArtImage(record.artImage);
     setSelectedThemeId("");
     setActiveView("builder");
-    setStorageMessage(`Loaded ${record.name} from cards.json.`);
+    setStorageMessage(loadMessage);
   };
 
   const renderNodeToDataUrl = async (
@@ -1035,10 +1211,22 @@ export default function Home() {
               <div className="mt-6 grid gap-6 xl:grid-cols-2">
                 <TextAndStatsSection
                   card={card}
+                  iconManager={
+                    <IconManagerSection
+                      icon={card.icon}
+                      iconSuggestions={librarySettings.iconSuggestions}
+                      defaultIcon={librarySettings.defaultIcon}
+                      newIconValue={newIconValue}
+                      onIconSelect={(icon) => {
+                        setCard((current) => ({ ...current, icon }));
+                      }}
+                      onNewIconValueChange={setNewIconValue}
+                      onAddIcon={addLibraryIcon}
+                      onRemoveIcon={removeLibraryIcon}
+                      onReorderIcons={reorderLibraryIcons}
+                    />
+                  }
                   onFieldChange={onFieldChange}
-                  onIconSuggestion={(icon) => {
-                    setCard((current) => ({ ...current, icon }));
-                  }}
                   onDescriptionAlignChange={(descriptionAlign) => {
                     setCard((current) => ({ ...current, descriptionAlign }));
                   }}
@@ -1050,7 +1238,7 @@ export default function Home() {
                   }}
                 />
 
-                <div className="space-y-3">
+                <div className="space-y-3 xl:col-span-2">
                   <label
                     className="text-sm font-medium text-slate-200"
                     htmlFor="artImage"
@@ -1079,7 +1267,7 @@ export default function Home() {
                       onClick={() => {
                         updateArtOffset(50, 50);
                       }}
-                      className="rounded-lg border border-slate-700 px-3 py-2 text-sm transition hover:border-slate-300"
+                      className="rounded-lg border w-72 border-slate-700 px-3 py-2 text-sm transition hover:border-slate-300"
                     >
                       Center image
                     </button>
@@ -1103,7 +1291,10 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     clearArt();
-                    setCard(defaultCard);
+                    setCard({
+                      ...defaultCard,
+                      icon: librarySettings.defaultIcon,
+                    });
                     setSelectedThemeId(cardThemes[0].id);
                   }}
                   className="rounded-lg border border-slate-600 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-300 hover:text-white"
@@ -1118,120 +1309,36 @@ export default function Home() {
               </div>
             </>
           ) : (
-            <div className="mt-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-2xl font-semibold tracking-wide text-slate-100">
-                  Saved Cards
-                </h2>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void pickExportFolder();
-                    }}
-                    disabled={isExportFolderBusy}
-                    className="rounded-lg border border-emerald-400/70 px-3 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isExportFolderBusy
-                      ? "Choosing..."
-                      : exportDirectoryHandle
-                        ? "Change export folder"
-                        : "Choose export folder"}
-                  </button>
-                  {libraryCards.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void exportAllCardsAsPng();
-                      }}
-                      disabled={isExporting}
-                      className="rounded-lg border border-emerald-500/70 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isExporting ? "Exporting..." : "Export all PNGs"}
-                    </button>
-                  )}
-                  {directoryHandle && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void reloadCardsFromFolder(directoryHandle, "Reloaded");
-                      }}
-                      className="rounded-lg border border-slate-600 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-300 hover:text-white"
-                    >
-                      Reload from JSON
-                    </button>
-                  )}
-                </div>
-              </div>
+            <LibrarySection
+              directoryConnected={Boolean(directoryHandle)}
+              directoryHandleAvailable={Boolean(directoryHandle)}
+              libraryCards={libraryCards}
+              paginatedLibraryCards={paginatedLibraryCards}
+              currentLibraryPage={currentLibraryPage}
+              totalLibraryPages={totalLibraryPages}
+              pageSize={LIBRARY_PAGE_SIZE}
+              isExporting={isExporting}
+              isExportFolderBusy={isExportFolderBusy}
+              exportDirectoryHandleAvailable={Boolean(exportDirectoryHandle)}
+              onPickExportFolder={() => {
+                void pickExportFolder();
+              }}
+              onExportAll={() => {
+                void exportAllCardsAsPng();
+              }}
+              onReload={() => {
+                if (!directoryHandle) {
+                  return;
+                }
 
-              {!directoryHandle ? (
-                <p className="rounded-xl border border-amber-500/40 bg-amber-900/20 p-4 text-sm text-amber-200">
-                  Choose a folder first, then cards will be read from cards.json
-                  in that folder.
-                </p>
-              ) : libraryCards.length === 0 ? (
-                <p className="rounded-xl border border-slate-700/80 bg-slate-950/70 p-4 text-sm text-slate-300">
-                  No saved cards found yet. Save one from the builder tab.
-                </p>
-              ) : (
-                <div className="max-h-[68vh] overflow-y-auto rounded-xl border border-slate-700/80 bg-slate-950/60 p-3">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {libraryCards.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="group rounded-xl border border-slate-700 bg-slate-900 p-3 text-left transition hover:border-cyan-300"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => loadRecordToBuilder(entry)}
-                          className="block w-full text-left"
-                        >
-                          <div className="mb-3 w-full aspect-5/7 overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
-                            <div
-                              className="relative h-full w-full"
-                              style={{
-                                backgroundColor: entry.card.artBackground,
-                              }}
-                            >
-                              {entry.artImage ? (
-                                <Image
-                                  src={entry.artImage}
-                                  alt={entry.name}
-                                  fill
-                                  sizes="180px"
-                                  unoptimized
-                                  className="object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-5xl opacity-70">
-                                  {entry.card.icon || "★"}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <p className="truncate text-sm font-semibold text-slate-100 group-hover:text-cyan-200">
-                            {entry.name}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {new Date(entry.updatedAt).toLocaleString()}
-                          </p>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void exportCardAsPng(entry.card, entry.artImage);
-                          }}
-                          disabled={isExporting}
-                          className="mt-3 w-full rounded-lg border border-emerald-500/70 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isExporting ? "Exporting..." : "Export PNG"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                void reloadCardsFromFolder(directoryHandle, "Reloaded");
+              }}
+              onPageChange={setCurrentLibraryPage}
+              onLoadRecord={loadRecordToBuilder}
+              onExportRecord={(entry) => {
+                void exportCardAsPng(entry.card, entry.artImage);
+              }}
+            />
           )}
         </section>
       </div>
