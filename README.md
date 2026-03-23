@@ -60,7 +60,7 @@ Output files are written to `dist-electron/`.
 - macOS builds generally need to be run on macOS.
 - Windows builds generally need to be run on Windows.
 - This project uses Next.js standalone output for Electron production runtime.
-- Every push to `main` auto-creates a patch tag (`vX.Y.Z`) via GitHub Actions.
+- Every push to `master` auto-creates a patch tag (`vX.Y.Z`) via GitHub Actions.
 - Use the `Auto Tag Releases` workflow (Run workflow) with `bump = major` when you want a new major version.
 
 <!-- DOWNLOAD_SECTION:START -->

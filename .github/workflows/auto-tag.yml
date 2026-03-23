@@ -3,7 +3,7 @@ name: Auto Tag Releases
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
     inputs:
       bump:
