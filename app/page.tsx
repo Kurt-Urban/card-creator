@@ -4,6 +4,7 @@ import { toPng } from "html-to-image";
 import Image from "next/image";
 import {
   ChangeEvent,
+  PointerEvent as ReactPointerEvent,
   RefObject,
   useEffect,
   useMemo,
@@ -26,6 +27,8 @@ type CardState = {
   frameAccent: string;
   titleColor: string;
   bodyTextColor: string;
+  artOffsetX: number;
+  artOffsetY: number;
 };
 
 type CardTheme = {
@@ -104,6 +107,8 @@ const defaultCard: CardState = {
   frameAccent: "#4fa2ff",
   titleColor: "#f6f7ff",
   bodyTextColor: "#f8f9ff",
+  artOffsetX: 50,
+  artOffsetY: 50,
 };
 
 const cardThemes: CardTheme[] = [
@@ -169,11 +174,26 @@ const emptyLibraryFile: CardLibraryFile = {
 type CardPreviewProps = {
   card: CardState;
   artImage: string | null;
+  onArtOffsetChange?: (x: number, y: number) => void;
 };
 
-function CardPreview({ card, artImage }: CardPreviewProps) {
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function CardPreview({ card, artImage, onArtOffsetChange }: CardPreviewProps) {
   const cardBase = card.cardBackground || defaultCard.cardBackground;
   const panelBase = card.panelBackground || defaultCard.panelBackground;
+  const artFrameRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{
+    pointerId: number;
+    startPointerX: number;
+    startPointerY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+  } | null>(null);
+  const [isDraggingArt, setIsDraggingArt] = useState(false);
+  const canDragArt = Boolean(artImage && onArtOffsetChange);
   const descriptionVerticalAlign: Record<
     CardState["descriptionPosition"],
     string
@@ -181,6 +201,68 @@ function CardPreview({ card, artImage }: CardPreviewProps) {
     top: "flex-start",
     center: "center",
     bottom: "flex-end",
+  };
+
+  const handleArtPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!canDragArt || !onArtOffsetChange) {
+      return;
+    }
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startPointerX: event.clientX,
+      startPointerY: event.clientY,
+      startOffsetX: card.artOffsetX,
+      startOffsetY: card.artOffsetY,
+    };
+    setIsDraggingArt(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handleArtPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!canDragArt || !onArtOffsetChange || !dragStateRef.current) {
+      return;
+    }
+
+    if (event.pointerId !== dragStateRef.current.pointerId) {
+      return;
+    }
+
+    const frame = artFrameRef.current;
+    if (!frame) {
+      return;
+    }
+
+    const { width, height } = frame.getBoundingClientRect();
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+
+    const deltaXPercent =
+      ((event.clientX - dragStateRef.current.startPointerX) / width) * 100;
+    const deltaYPercent =
+      ((event.clientY - dragStateRef.current.startPointerY) / height) * 100;
+
+    onArtOffsetChange(
+      clamp(dragStateRef.current.startOffsetX + deltaXPercent, 0, 100),
+      clamp(dragStateRef.current.startOffsetY + deltaYPercent, 0, 100),
+    );
+  };
+
+  const handleArtPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (
+      !dragStateRef.current ||
+      event.pointerId !== dragStateRef.current.pointerId
+    ) {
+      return;
+    }
+
+    dragStateRef.current = null;
+    setIsDraggingArt(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   };
 
   return (
@@ -226,10 +308,20 @@ function CardPreview({ card, artImage }: CardPreviewProps) {
         </header>
 
         <div
+          ref={artFrameRef}
           className="relative min-h-0 flex-[0_0_45%] overflow-hidden rounded-xl border-2"
           style={{
             borderColor: card.frameAccent,
             backgroundColor: card.artBackground,
+            touchAction: canDragArt ? "none" : "auto",
+            cursor: canDragArt ? "pointer" : "default",
+          }}
+          onPointerDown={handleArtPointerDown}
+          onPointerMove={handleArtPointerMove}
+          onPointerUp={handleArtPointerUp}
+          onPointerCancel={handleArtPointerUp}
+          onDragStart={(event) => {
+            event.preventDefault();
           }}
         >
           {artImage ? (
@@ -238,7 +330,15 @@ function CardPreview({ card, artImage }: CardPreviewProps) {
               alt="Card art"
               fill
               sizes="390px"
-              className="object-cover"
+              className={
+                isDraggingArt
+                  ? "pointer-events-none select-none object-cover"
+                  : "select-none object-cover"
+              }
+              style={{
+                objectPosition: `${card.artOffsetX}% ${card.artOffsetY}%`,
+              }}
+              draggable={false}
               unoptimized
             />
           ) : (
@@ -639,6 +739,19 @@ export default function Home() {
 
   const clearArt = () => {
     setArtImage(null);
+    setCard((current) => ({
+      ...current,
+      artOffsetX: defaultCard.artOffsetX,
+      artOffsetY: defaultCard.artOffsetY,
+    }));
+  };
+
+  const updateArtOffset = (x: number, y: number) => {
+    setCard((current) => ({
+      ...current,
+      artOffsetX: x,
+      artOffsetY: y,
+    }));
   };
 
   const applyTheme = (themeId: string) => {
@@ -958,7 +1071,11 @@ export default function Home() {
       </div>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 lg:flex-row">
         <section className="flex w-full justify-center lg:sticky lg:top-8 lg:h-[calc(100vh-4rem)] lg:w-105 lg:items-start">
-          <CardPreview card={card} artImage={artImage} />
+          <CardPreview
+            card={card}
+            artImage={artImage}
+            onArtOffsetChange={updateArtOffset}
+          />
         </section>
 
         <section className="w-full rounded-3xl border border-slate-700/80 bg-slate-900/70 p-4 backdrop-blur sm:p-6">
@@ -1149,7 +1266,20 @@ export default function Home() {
                     >
                       Clear
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateArtOffset(50, 50);
+                      }}
+                      className="rounded-lg border border-slate-700 px-3 py-2 text-sm transition hover:border-slate-300"
+                    >
+                      Center image
+                    </button>
                   </div>
+                  <p className="text-xs text-slate-400">
+                    Drag directly on the artwork to reposition it inside the
+                    frame.
+                  </p>
                 </div>
 
                 <div className="space-y-3 xl:col-span-2">
