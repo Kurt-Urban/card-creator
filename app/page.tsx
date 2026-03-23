@@ -1,42 +1,34 @@
 "use client";
 
+import {
+  CardLibrarySettings,
+  CardLibraryFile,
+  CardRecord,
+  CardState,
+  cardThemes,
+  defaultLibrarySettings,
+  defaultCard,
+  emptyLibraryFile,
+  ensureCardState,
+  getThemeById,
+  sortByNewest,
+  ThemeColorField,
+} from "./card-builder";
+import { IconManagerSection } from "./components/IconManagerSection";
+import { LibrarySection } from "./components/LibrarySection";
+import { TextAndStatsSection } from "./components/TextAndStatsSection";
+import { ThemeAppearanceSection } from "./components/ThemeAppearanceSection";
 import { toPng } from "html-to-image";
 import Image from "next/image";
 import {
   ChangeEvent,
+  PointerEvent as ReactPointerEvent,
   RefObject,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-
-type CardState = {
-  title: string;
-  icon: string;
-  description: string;
-  footerLeft: string;
-  footerCenter: string;
-  footerRight: string;
-  artBackground: string;
-  panelBackground: string;
-  frameAccent: string;
-  titleColor: string;
-  bodyTextColor: string;
-};
-
-type CardRecord = {
-  id: string;
-  name: string;
-  card: CardState;
-  artImage: string | null;
-  updatedAt: string;
-};
-
-type CardLibraryFile = {
-  version: number;
-  cards: CardRecord[];
-};
 
 type PermissionMode = "read" | "readwrite";
 
@@ -74,43 +66,124 @@ const DB_STORE = "settings";
 const DB_DIRECTORY_KEY = "cards-directory-handle";
 const DB_EXPORT_DIRECTORY_KEY = "export-directory-handle";
 const CARD_JSON_FILE = "cards.json";
-
-const defaultCard: CardState = {
-  title: "Title",
-  icon: "💧",
-  description: "Description",
-  footerLeft: "0",
-  footerCenter: "0",
-  footerRight: "0",
-  artBackground: "#3f0004",
-  panelBackground: "#324379",
-  frameAccent: "#4fa2ff",
-  titleColor: "#f6f7ff",
-  bodyTextColor: "#f8f9ff",
-};
-
-const iconSuggestions = ["💧", "🔥", "🌿", "☠", "⚡", "❄", "✨", "🛡"];
-
-const emptyLibraryFile: CardLibraryFile = {
-  version: 1,
-  cards: [],
-};
+const LIBRARY_PAGE_SIZE = 24;
 
 type CardPreviewProps = {
   card: CardState;
   artImage: string | null;
+  onArtOffsetChange?: (x: number, y: number) => void;
 };
 
-function CardPreview({ card, artImage }: CardPreviewProps) {
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function CardPreview({ card, artImage, onArtOffsetChange }: CardPreviewProps) {
+  const cardBase = card.cardBackground || defaultCard.cardBackground;
+  const panelBase = card.panelBackground || defaultCard.panelBackground;
+  const artFrameRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{
+    pointerId: number;
+    startPointerX: number;
+    startPointerY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+  } | null>(null);
+  const [isDraggingArt, setIsDraggingArt] = useState(false);
+  const canDragArt = Boolean(artImage && onArtOffsetChange);
+  const descriptionVerticalAlign: Record<
+    CardState["descriptionPosition"],
+    string
+  > = {
+    top: "flex-start",
+    center: "center",
+    bottom: "flex-end",
+  };
+
+  const handleArtPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!canDragArt || !onArtOffsetChange) {
+      return;
+    }
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startPointerX: event.clientX,
+      startPointerY: event.clientY,
+      startOffsetX: card.artOffsetX,
+      startOffsetY: card.artOffsetY,
+    };
+    setIsDraggingArt(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handleArtPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!canDragArt || !onArtOffsetChange || !dragStateRef.current) {
+      return;
+    }
+
+    if (event.pointerId !== dragStateRef.current.pointerId) {
+      return;
+    }
+
+    const frame = artFrameRef.current;
+    if (!frame) {
+      return;
+    }
+
+    const { width, height } = frame.getBoundingClientRect();
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+
+    const deltaXPercent =
+      ((event.clientX - dragStateRef.current.startPointerX) / width) * 100;
+    const deltaYPercent =
+      ((event.clientY - dragStateRef.current.startPointerY) / height) * 100;
+
+    onArtOffsetChange(
+      clamp(dragStateRef.current.startOffsetX + deltaXPercent, 0, 100),
+      clamp(dragStateRef.current.startOffsetY + deltaYPercent, 0, 100),
+    );
+  };
+
+  const handleArtPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (
+      !dragStateRef.current ||
+      event.pointerId !== dragStateRef.current.pointerId
+    ) {
+      return;
+    }
+
+    dragStateRef.current = null;
+    setIsDraggingArt(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   return (
-    <article className="relative h-[448px] w-[320px] shrink-0 rounded-[28px] border-8 border-black bg-linear-to-b from-slate-900 via-slate-950 to-black p-2 shadow-[0_30px_80px_rgba(0,0,0,0.65)] sm:h-[504px] sm:w-[360px] lg:h-[546px] lg:w-[390px]">
-      <div className="relative flex h-full flex-col gap-2 overflow-hidden rounded-[20px] border-2 border-slate-800 bg-slate-900 p-3">
+    <article
+      className="relative h-[448px] w-[320px] shrink-0 rounded-[28px] border-8 border-black p-2 shadow-[0_30px_80px_rgba(0,0,0,0.65)] sm:h-[504px] sm:w-[360px] lg:h-[546px] lg:w-[390px]"
+      style={{
+        backgroundColor: cardBase,
+        backgroundImage: `linear-gradient(170deg, ${cardBase}, rgba(0,0,0,0.85))`,
+      }}
+    >
+      <div
+        className="relative flex h-full flex-col gap-2 overflow-hidden rounded-[20px] border-2 p-3"
+        style={{
+          borderColor: card.frameAccent,
+          backgroundColor: cardBase,
+          backgroundImage:
+            "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.25))",
+        }}
+      >
         <header
           className="flex h-10 shrink-0 items-center justify-between rounded-xl border-2 px-3 py-1 shadow-[inset_0_0_0_2px_rgba(255,255,255,0.06)]"
           style={{
             borderColor: card.frameAccent,
-            background:
-              "linear-gradient(135deg, rgba(20,28,65,0.95), rgba(57,78,140,0.95))",
+            backgroundColor: panelBase,
           }}
         >
           <h1
@@ -132,10 +205,20 @@ function CardPreview({ card, artImage }: CardPreviewProps) {
         </header>
 
         <div
+          ref={artFrameRef}
           className="relative min-h-0 flex-[0_0_45%] overflow-hidden rounded-xl border-2"
           style={{
             borderColor: card.frameAccent,
             backgroundColor: card.artBackground,
+            touchAction: canDragArt ? "none" : "auto",
+            cursor: canDragArt ? "pointer" : "default",
+          }}
+          onPointerDown={handleArtPointerDown}
+          onPointerMove={handleArtPointerMove}
+          onPointerUp={handleArtPointerUp}
+          onPointerCancel={handleArtPointerUp}
+          onDragStart={(event) => {
+            event.preventDefault();
           }}
         >
           {artImage ? (
@@ -144,7 +227,15 @@ function CardPreview({ card, artImage }: CardPreviewProps) {
               alt="Card art"
               fill
               sizes="390px"
-              className="object-cover"
+              className={
+                isDraggingArt
+                  ? "pointer-events-none select-none object-cover"
+                  : "select-none object-cover"
+              }
+              style={{
+                objectPosition: `${card.artOffsetX}% ${card.artOffsetY}%`,
+              }}
+              draggable={false}
               unoptimized
             />
           ) : (
@@ -159,25 +250,35 @@ function CardPreview({ card, artImage }: CardPreviewProps) {
           className="relative min-h-0 flex-1 rounded-xl border-2 p-4"
           style={{
             borderColor: card.frameAccent,
-            background:
-              "linear-gradient(160deg, rgba(50,67,121,0.98), rgba(33,45,87,0.96))",
-            backgroundColor: card.panelBackground,
+            backgroundColor: panelBase,
+            backgroundImage:
+              "linear-gradient(155deg, rgba(255,255,255,0.08), rgba(0,0,0,0.15))",
           }}
         >
-          <p
-            className="h-full overflow-y-auto text-lg leading-relaxed"
-            style={{ color: card.bodyTextColor }}
+          <div
+            className="flex h-full flex-col overflow-y-auto"
+            style={{
+              justifyContent:
+                descriptionVerticalAlign[card.descriptionPosition],
+            }}
           >
-            {card.description || "Add your card description here."}
-          </p>
+            <p
+              className="w-full whitespace-pre-wrap text-lg leading-relaxed"
+              style={{
+                color: card.bodyTextColor,
+                textAlign: card.descriptionAlign,
+              }}
+            >
+              {card.description || "Add your card description here."}
+            </p>
+          </div>
         </div>
 
         <footer
           className="grid h-10 shrink-0 grid-cols-3 rounded-xl border-2 px-4 py-1 text-2xl font-semibold"
           style={{
             borderColor: card.frameAccent,
-            background:
-              "linear-gradient(135deg, rgba(33,46,95,0.95), rgba(48,64,124,0.95))",
+            backgroundColor: panelBase,
             color: card.titleColor,
           }}
         >
@@ -257,12 +358,6 @@ function toCardId(input: string): string {
   );
 }
 
-function sortByNewest(cards: CardRecord[]): CardRecord[] {
-  return [...cards].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
-}
-
 async function ensureDirectoryPermission(
   handle: DirectoryHandleLike,
   shouldPrompt: boolean,
@@ -305,17 +400,63 @@ async function readLibraryFile(
       return emptyLibraryFile;
     }
 
+    const parsedSettings =
+      typeof parsed.settings === "object" && parsed.settings !== null
+        ? (parsed.settings as Partial<CardLibrarySettings>)
+        : {};
+    const normalizedIconSuggestions = Array.isArray(
+      parsedSettings.iconSuggestions,
+    )
+      ? parsedSettings.iconSuggestions
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0)
+      : [];
+    const defaultIcon =
+      typeof parsedSettings.defaultIcon === "string" &&
+      parsedSettings.defaultIcon.trim().length > 0
+        ? parsedSettings.defaultIcon.trim()
+        : defaultLibrarySettings.defaultIcon;
+    const mergedIconSuggestions = Array.from(
+      new Set([...normalizedIconSuggestions, defaultIcon]),
+    );
+
     return {
       version: typeof parsed.version === "number" ? parsed.version : 1,
-      cards: parsed.cards.filter(
-        (entry): entry is CardRecord =>
-          typeof entry === "object" &&
-          entry !== null &&
-          typeof entry.id === "string" &&
-          typeof entry.name === "string" &&
-          typeof entry.updatedAt === "string" &&
-          typeof entry.card === "object",
-      ),
+      settings: {
+        iconSuggestions:
+          mergedIconSuggestions.length > 0
+            ? mergedIconSuggestions
+            : defaultLibrarySettings.iconSuggestions,
+        defaultIcon,
+      },
+      cards: parsed.cards.reduce<CardRecord[]>((acc, entry) => {
+        if (typeof entry !== "object" || entry === null) {
+          return acc;
+        }
+
+        const candidate = entry as Partial<CardRecord>;
+        const normalizedCard = ensureCardState(candidate.card);
+
+        if (
+          typeof candidate.id !== "string" ||
+          typeof candidate.name !== "string" ||
+          typeof candidate.updatedAt !== "string" ||
+          !normalizedCard
+        ) {
+          return acc;
+        }
+
+        acc.push({
+          id: candidate.id,
+          name: candidate.name,
+          updatedAt: candidate.updatedAt,
+          artImage:
+            typeof candidate.artImage === "string" ? candidate.artImage : null,
+          card: normalizedCard,
+        });
+        return acc;
+      }, []),
     };
   } catch {
     return emptyLibraryFile;
@@ -359,10 +500,19 @@ async function wait(durationMs: number) {
 
 export default function Home() {
   const [card, setCard] = useState<CardState>(defaultCard);
+  const [selectedThemeId, setSelectedThemeId] = useState<string>(
+    cardThemes[0].id,
+  );
+  const [isColorControlsOpen, setIsColorControlsOpen] = useState(false);
+  const [librarySettings, setLibrarySettings] = useState<CardLibrarySettings>(
+    defaultLibrarySettings,
+  );
+  const [newIconValue, setNewIconValue] = useState("");
   const [artImage, setArtImage] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"builder" | "library">(
     "builder",
   );
+  const [currentLibraryPage, setCurrentLibraryPage] = useState(1);
   const [libraryCards, setLibraryCards] = useState<CardRecord[]>([]);
   const [directoryHandle, setDirectoryHandle] =
     useState<DirectoryHandleLike | null>(null);
@@ -382,13 +532,26 @@ export default function Home() {
   );
   const exportRef = useRef<HTMLDivElement | null>(null);
 
-  const isPickerSupported = useMemo(() => {
+  const [isPickerSupported, setIsPickerSupported] = useState(false);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
-      return false;
+      return;
     }
 
-    return "showDirectoryPicker" in (window as WindowWithDirectoryPicker);
+    setIsPickerSupported(
+      "showDirectoryPicker" in (window as WindowWithDirectoryPicker),
+    );
   }, []);
+
+  const totalLibraryPages = Math.max(
+    1,
+    Math.ceil(libraryCards.length / LIBRARY_PAGE_SIZE),
+  );
+  const paginatedLibraryCards = useMemo(() => {
+    const startIndex = (currentLibraryPage - 1) * LIBRARY_PAGE_SIZE;
+    return libraryCards.slice(startIndex, startIndex + LIBRARY_PAGE_SIZE);
+  }, [currentLibraryPage, libraryCards]);
 
   const reloadCardsFromFolder = async (
     nextHandle: DirectoryHandleLike,
@@ -396,7 +559,9 @@ export default function Home() {
   ) => {
     const data = await readLibraryFile(nextHandle);
     const sorted = sortByNewest(data.cards);
+    setLibrarySettings(data.settings);
     setLibraryCards(sorted);
+    setCurrentLibraryPage(1);
     setStorageMessage(
       `${statusPrefix} ${sorted.length} card${sorted.length === 1 ? "" : "s"}.`,
     );
@@ -472,9 +637,21 @@ export default function Home() {
     void restoreExportFolder();
   }, []);
 
+  useEffect(() => {
+    setIsColorControlsOpen(selectedThemeId === "");
+  }, [selectedThemeId]);
+
+  useEffect(() => {
+    setCurrentLibraryPage((current) => Math.min(current, totalLibraryPages));
+  }, [totalLibraryPages]);
+
   const onFieldChange =
     (key: keyof CardState) =>
-    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    (
+      event: ChangeEvent<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >,
+    ) => {
       setCard((current) => ({ ...current, [key]: event.target.value }));
     };
 
@@ -494,6 +671,145 @@ export default function Home() {
 
   const clearArt = () => {
     setArtImage(null);
+    setCard((current) => ({
+      ...current,
+      artOffsetX: defaultCard.artOffsetX,
+      artOffsetY: defaultCard.artOffsetY,
+    }));
+  };
+
+  const updateArtOffset = (x: number, y: number) => {
+    setCard((current) => ({
+      ...current,
+      artOffsetX: x,
+      artOffsetY: y,
+    }));
+  };
+
+  const persistLibrarySettings = async (nextSettings: CardLibrarySettings) => {
+    if (!directoryHandle) {
+      return;
+    }
+
+    try {
+      const granted = await ensureDirectoryPermission(directoryHandle, true);
+      if (!granted) {
+        setStorageMessage(
+          "Cannot update icon settings without folder permission.",
+        );
+        return;
+      }
+
+      const currentLibrary = await readLibraryFile(directoryHandle);
+      await writeLibraryFile(directoryHandle, {
+        ...currentLibrary,
+        settings: nextSettings,
+      });
+      setStorageMessage("Updated folder icon settings.");
+    } catch {
+      setStorageMessage("Could not persist icon settings.");
+    }
+  };
+
+  const addLibraryIcon = () => {
+    const icon = newIconValue.trim();
+    if (!icon) {
+      return;
+    }
+
+    if (librarySettings.iconSuggestions.includes(icon)) {
+      setNewIconValue("");
+      return;
+    }
+
+    const nextSettings: CardLibrarySettings = {
+      ...librarySettings,
+      iconSuggestions: [...librarySettings.iconSuggestions, icon],
+    };
+    setLibrarySettings(nextSettings);
+    setNewIconValue("");
+    void persistLibrarySettings(nextSettings);
+  };
+
+  const reorderLibraryIcons = (fromIndex: number, toIndex: number) => {
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= librarySettings.iconSuggestions.length ||
+      toIndex >= librarySettings.iconSuggestions.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+
+    const nextIconSuggestions = [...librarySettings.iconSuggestions];
+    const [movedIcon] = nextIconSuggestions.splice(fromIndex, 1);
+    if (!movedIcon) {
+      return;
+    }
+
+    nextIconSuggestions.splice(toIndex, 0, movedIcon);
+
+    const nextSettings: CardLibrarySettings = {
+      iconSuggestions: nextIconSuggestions,
+      defaultIcon: nextIconSuggestions[0],
+    };
+
+    setLibrarySettings(nextSettings);
+    void persistLibrarySettings(nextSettings);
+  };
+
+  const removeLibraryIcon = (icon: string) => {
+    if (librarySettings.iconSuggestions.length <= 1) {
+      setStorageMessage(
+        "At least one icon must remain in the folder icon list.",
+      );
+      return;
+    }
+
+    const nextIconSuggestions = librarySettings.iconSuggestions.filter(
+      (value) => value !== icon,
+    );
+
+    const nextDefaultIcon =
+      librarySettings.defaultIcon === icon
+        ? nextIconSuggestions[0]
+        : librarySettings.defaultIcon;
+
+    const nextSettings: CardLibrarySettings = {
+      iconSuggestions: nextIconSuggestions,
+      defaultIcon: nextDefaultIcon,
+    };
+
+    setLibrarySettings(nextSettings);
+    if (card.icon === icon) {
+      setCard((current) => ({ ...current, icon: nextDefaultIcon }));
+    }
+    void persistLibrarySettings(nextSettings);
+  };
+
+  const onThemeColorFieldChange =
+    (key: ThemeColorField) => (event: ChangeEvent<HTMLInputElement>) => {
+      setSelectedThemeId("");
+      onFieldChange(key)(event);
+    };
+
+  const applyTheme = (themeId: string) => {
+    const theme = getThemeById(themeId);
+    if (!theme) {
+      return;
+    }
+
+    setSelectedThemeId(theme.id);
+    setCard((current) => ({
+      ...current,
+      cardBackground: theme.cardBackground,
+      artBackground: theme.artBackground,
+      panelBackground: theme.panelBackground,
+      frameAccent: theme.frameAccent,
+      titleColor: theme.titleColor,
+      bodyTextColor: theme.bodyTextColor,
+    }));
   };
 
   const pickCardsFolder = async () => {
@@ -623,6 +939,8 @@ export default function Home() {
         nextLibrary.cards.push(nextRecord);
       }
 
+      nextLibrary.settings = librarySettings;
+
       await writeLibraryFile(directoryHandle, nextLibrary);
       const sorted = sortByNewest(nextLibrary.cards);
       setLibraryCards(sorted);
@@ -640,10 +958,32 @@ export default function Home() {
   };
 
   const loadRecordToBuilder = (record: CardRecord) => {
-    setCard(record.card);
+    const normalizedCard = ensureCardState(record.card);
+    if (!normalizedCard) {
+      setStorageMessage("This card entry is invalid and could not be loaded.");
+      return;
+    }
+
+    const iconFromCard = normalizedCard.icon.trim();
+    let loadMessage = `Loaded ${record.name} from cards.json.`;
+    if (
+      iconFromCard &&
+      !librarySettings.iconSuggestions.includes(iconFromCard)
+    ) {
+      const nextSettings: CardLibrarySettings = {
+        ...librarySettings,
+        iconSuggestions: [...librarySettings.iconSuggestions, iconFromCard],
+      };
+      setLibrarySettings(nextSettings);
+      void persistLibrarySettings(nextSettings);
+      loadMessage = `Loaded ${record.name} from cards.json. Restored missing icon ${iconFromCard} to the folder icon list.`;
+    }
+
+    setCard(normalizedCard);
     setArtImage(record.artImage);
+    setSelectedThemeId("");
     setActiveView("builder");
-    setStorageMessage(`Loaded ${record.name} from cards.json.`);
+    setStorageMessage(loadMessage);
   };
 
   const renderNodeToDataUrl = async (
@@ -788,7 +1128,11 @@ export default function Home() {
       </div>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 lg:flex-row">
         <section className="flex w-full justify-center lg:sticky lg:top-8 lg:h-[calc(100vh-4rem)] lg:w-105 lg:items-start">
-          <CardPreview card={card} artImage={artImage} />
+          <CardPreview
+            card={card}
+            artImage={artImage}
+            onArtOffsetChange={updateArtOffset}
+          />
         </section>
 
         <section className="w-full rounded-3xl border border-slate-700/80 bg-slate-900/70 p-4 backdrop-blur sm:p-6">
@@ -865,70 +1209,36 @@ export default function Home() {
           {activeView === "builder" ? (
             <>
               <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                <div className="space-y-3">
-                  <label
-                    className="text-sm font-medium text-slate-200"
-                    htmlFor="title"
-                  >
-                    Title
-                  </label>
-                  <input
-                    id="title"
-                    value={card.title}
-                    onChange={onFieldChange("title")}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <label
-                    className="text-sm font-medium text-slate-200"
-                    htmlFor="icon"
-                  >
-                    Icon
-                  </label>
-                  <div className="flex gap-3">
-                    <input
-                      id="icon"
-                      value={card.icon}
-                      onChange={onFieldChange("icon")}
-                      maxLength={2}
-                      className="w-20 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-center text-xl text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                <TextAndStatsSection
+                  card={card}
+                  iconManager={
+                    <IconManagerSection
+                      icon={card.icon}
+                      iconSuggestions={librarySettings.iconSuggestions}
+                      defaultIcon={librarySettings.defaultIcon}
+                      newIconValue={newIconValue}
+                      onIconSelect={(icon) => {
+                        setCard((current) => ({ ...current, icon }));
+                      }}
+                      onNewIconValueChange={setNewIconValue}
+                      onAddIcon={addLibraryIcon}
+                      onRemoveIcon={removeLibraryIcon}
+                      onReorderIcons={reorderLibraryIcons}
                     />
-                    <div className="flex flex-wrap gap-2">
-                      {iconSuggestions.map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() =>
-                            setCard((current) => ({ ...current, icon: value }))
-                          }
-                          className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xl transition hover:border-cyan-300"
-                        >
-                          {value}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                  }
+                  onFieldChange={onFieldChange}
+                  onDescriptionAlignChange={(descriptionAlign) => {
+                    setCard((current) => ({ ...current, descriptionAlign }));
+                  }}
+                  onDescriptionPositionChange={(descriptionPosition) => {
+                    setCard((current) => ({
+                      ...current,
+                      descriptionPosition,
+                    }));
+                  }}
+                />
 
                 <div className="space-y-3 xl:col-span-2">
-                  <label
-                    className="text-sm font-medium text-slate-200"
-                    htmlFor="description"
-                  >
-                    Description
-                  </label>
-                  <textarea
-                    id="description"
-                    value={card.description}
-                    onChange={onFieldChange("description")}
-                    rows={5}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                  />
-                </div>
-
-                <div className="space-y-3">
                   <label
                     className="text-sm font-medium text-slate-200"
                     htmlFor="artImage"
@@ -952,86 +1262,28 @@ export default function Home() {
                     >
                       Clear
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateArtOffset(50, 50);
+                      }}
+                      className="rounded-lg border w-72 border-slate-700 px-3 py-2 text-sm transition hover:border-slate-300"
+                    >
+                      Center image
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Art background
-                    <input
-                      type="color"
-                      value={card.artBackground}
-                      onChange={onFieldChange("artBackground")}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Panel color
-                    <input
-                      type="color"
-                      value={card.panelBackground}
-                      onChange={onFieldChange("panelBackground")}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 xl:col-span-2">
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Frame accent
-                    <input
-                      type="color"
-                      value={card.frameAccent}
-                      onChange={onFieldChange("frameAccent")}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Title text
-                    <input
-                      type="color"
-                      value={card.titleColor}
-                      onChange={onFieldChange("titleColor")}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Body text
-                    <input
-                      type="color"
-                      value={card.bodyTextColor}
-                      onChange={onFieldChange("bodyTextColor")}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 xl:col-span-2">
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Left stat
-                    <input
-                      value={card.footerLeft}
-                      onChange={onFieldChange("footerLeft")}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Center stat
-                    <input
-                      value={card.footerCenter}
-                      onChange={onFieldChange("footerCenter")}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Right stat
-                    <input
-                      value={card.footerRight}
-                      onChange={onFieldChange("footerRight")}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    />
-                  </label>
-                </div>
+                <ThemeAppearanceSection
+                  card={card}
+                  selectedThemeId={selectedThemeId}
+                  isColorControlsOpen={isColorControlsOpen}
+                  onThemeChange={applyTheme}
+                  onToggleColorControls={() => {
+                    setIsColorControlsOpen((current) => !current);
+                  }}
+                  onColorFieldChange={onThemeColorFieldChange}
+                />
               </div>
 
               <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -1039,7 +1291,11 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     clearArt();
-                    setCard(defaultCard);
+                    setCard({
+                      ...defaultCard,
+                      icon: librarySettings.defaultIcon,
+                    });
+                    setSelectedThemeId(cardThemes[0].id);
                   }}
                   className="rounded-lg border border-slate-600 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-300 hover:text-white"
                 >
@@ -1053,120 +1309,36 @@ export default function Home() {
               </div>
             </>
           ) : (
-            <div className="mt-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-2xl font-semibold tracking-wide text-slate-100">
-                  Saved Cards
-                </h2>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void pickExportFolder();
-                    }}
-                    disabled={isExportFolderBusy}
-                    className="rounded-lg border border-emerald-400/70 px-3 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isExportFolderBusy
-                      ? "Choosing..."
-                      : exportDirectoryHandle
-                        ? "Change export folder"
-                        : "Choose export folder"}
-                  </button>
-                  {libraryCards.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void exportAllCardsAsPng();
-                      }}
-                      disabled={isExporting}
-                      className="rounded-lg border border-emerald-500/70 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isExporting ? "Exporting..." : "Export all PNGs"}
-                    </button>
-                  )}
-                  {directoryHandle && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void reloadCardsFromFolder(directoryHandle, "Reloaded");
-                      }}
-                      className="rounded-lg border border-slate-600 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-300 hover:text-white"
-                    >
-                      Reload from JSON
-                    </button>
-                  )}
-                </div>
-              </div>
+            <LibrarySection
+              directoryConnected={Boolean(directoryHandle)}
+              directoryHandleAvailable={Boolean(directoryHandle)}
+              libraryCards={libraryCards}
+              paginatedLibraryCards={paginatedLibraryCards}
+              currentLibraryPage={currentLibraryPage}
+              totalLibraryPages={totalLibraryPages}
+              pageSize={LIBRARY_PAGE_SIZE}
+              isExporting={isExporting}
+              isExportFolderBusy={isExportFolderBusy}
+              exportDirectoryHandleAvailable={Boolean(exportDirectoryHandle)}
+              onPickExportFolder={() => {
+                void pickExportFolder();
+              }}
+              onExportAll={() => {
+                void exportAllCardsAsPng();
+              }}
+              onReload={() => {
+                if (!directoryHandle) {
+                  return;
+                }
 
-              {!directoryHandle ? (
-                <p className="rounded-xl border border-amber-500/40 bg-amber-900/20 p-4 text-sm text-amber-200">
-                  Choose a folder first, then cards will be read from cards.json
-                  in that folder.
-                </p>
-              ) : libraryCards.length === 0 ? (
-                <p className="rounded-xl border border-slate-700/80 bg-slate-950/70 p-4 text-sm text-slate-300">
-                  No saved cards found yet. Save one from the builder tab.
-                </p>
-              ) : (
-                <div className="max-h-[68vh] overflow-y-auto rounded-xl border border-slate-700/80 bg-slate-950/60 p-3">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {libraryCards.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="group rounded-xl border border-slate-700 bg-slate-900 p-3 text-left transition hover:border-cyan-300"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => loadRecordToBuilder(entry)}
-                          className="block w-full text-left"
-                        >
-                          <div className="mb-3 w-full aspect-5/7 overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
-                            <div
-                              className="relative h-full w-full"
-                              style={{
-                                backgroundColor: entry.card.artBackground,
-                              }}
-                            >
-                              {entry.artImage ? (
-                                <Image
-                                  src={entry.artImage}
-                                  alt={entry.name}
-                                  fill
-                                  sizes="180px"
-                                  unoptimized
-                                  className="object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-5xl opacity-70">
-                                  {entry.card.icon || "★"}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <p className="truncate text-sm font-semibold text-slate-100 group-hover:text-cyan-200">
-                            {entry.name}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {new Date(entry.updatedAt).toLocaleString()}
-                          </p>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void exportCardAsPng(entry.card, entry.artImage);
-                          }}
-                          disabled={isExporting}
-                          className="mt-3 w-full rounded-lg border border-emerald-500/70 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isExporting ? "Exporting..." : "Export PNG"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                void reloadCardsFromFolder(directoryHandle, "Reloaded");
+              }}
+              onPageChange={setCurrentLibraryPage}
+              onLoadRecord={loadRecordToBuilder}
+              onExportRecord={(entry) => {
+                void exportCardAsPng(entry.card, entry.artImage);
+              }}
+            />
           )}
         </section>
       </div>
