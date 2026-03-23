@@ -66,4 +66,4 @@ Output files are written to `dist-electron/`.
 - Every push to `master` auto-creates a patch tag (`vX.Y.Z`) via GitHub Actions.
 - Use the `Auto Tag Releases` workflow (Run workflow) with `bump = major` when you want a new major version.
 
-<!-- DOWNLOAD_SECTION:START -->\n## Download Installers\n\nLatest release: [v0.0.3](https://github.com/Kurt-Urban/card-creator/releases/tag/v0.0.3)\n\n- Windows (.exe): Not available in latest release\n- macOS (.dmg): Not available in latest release\n\n<!-- INSTALLER_LINKS:START -->\nGenerated from release v0.0.3.\n<!-- INSTALLER_LINKS:END -->\n<!-- DOWNLOAD_SECTION:END -->
+<!-- DOWNLOAD_SECTION:START -->\n## Download Installers\n\nLatest release: [v0.0.4](https://github.com/Kurt-Urban/card-creator/releases/tag/v0.0.4)\n\n- Windows (.exe): Not available in latest release\n- macOS (.dmg): Not available in latest release\n\n<!-- INSTALLER_LINKS:START -->\nGenerated from release v0.0.4.\n<!-- INSTALLER_LINKS:END -->\n<!-- DOWNLOAD_SECTION:END -->
