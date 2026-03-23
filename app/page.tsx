@@ -18,6 +18,18 @@ type CardState = {
   footerLeft: string;
   footerCenter: string;
   footerRight: string;
+  cardBackground: string;
+  artBackground: string;
+  panelBackground: string;
+  frameAccent: string;
+  titleColor: string;
+  bodyTextColor: string;
+};
+
+type CardTheme = {
+  id: string;
+  label: string;
+  cardBackground: string;
   artBackground: string;
   panelBackground: string;
   frameAccent: string;
@@ -82,12 +94,66 @@ const defaultCard: CardState = {
   footerLeft: "0",
   footerCenter: "0",
   footerRight: "0",
+  cardBackground: "#0b1020",
   artBackground: "#3f0004",
   panelBackground: "#324379",
   frameAccent: "#4fa2ff",
   titleColor: "#f6f7ff",
   bodyTextColor: "#f8f9ff",
 };
+
+const cardThemes: CardTheme[] = [
+  {
+    id: "blue",
+    label: "Blue",
+    cardBackground: "#0b1020",
+    artBackground: "#11356f",
+    panelBackground: "#1f3d8d",
+    frameAccent: "#4fa2ff",
+    titleColor: "#f6f7ff",
+    bodyTextColor: "#eff6ff",
+  },
+  {
+    id: "red",
+    label: "Red",
+    cardBackground: "#221008",
+    artBackground: "#5f1408",
+    panelBackground: "#7c2d12",
+    frameAccent: "#ff8a3d",
+    titleColor: "#fff4e8",
+    bodyTextColor: "#fff0dc",
+  },
+  {
+    id: "green",
+    label: "Green",
+    cardBackground: "#102219",
+    artBackground: "#114d3f",
+    panelBackground: "#1a7a5d",
+    frameAccent: "#70e1ae",
+    titleColor: "#effff7",
+    bodyTextColor: "#e2fff2",
+  },
+  {
+    id: "purple",
+    label: "Purple",
+    cardBackground: "#190f2b",
+    artBackground: "#33135d",
+    panelBackground: "#4f1f88",
+    frameAccent: "#d2a8ff",
+    titleColor: "#fbf5ff",
+    bodyTextColor: "#f4ebff",
+  },
+  {
+    id: "yellow",
+    label: "Yellow",
+    cardBackground: "#2a200b",
+    artBackground: "#6e5310",
+    panelBackground: "#9a7212",
+    frameAccent: "#ffd776",
+    titleColor: "#fff8e5",
+    bodyTextColor: "#fff3cf",
+  },
+];
 
 const iconSuggestions = ["💧", "🔥", "🌿", "☠", "⚡", "❄", "✨", "🛡"];
 
@@ -102,15 +168,31 @@ type CardPreviewProps = {
 };
 
 function CardPreview({ card, artImage }: CardPreviewProps) {
+  const cardBase = card.cardBackground || defaultCard.cardBackground;
+  const panelBase = card.panelBackground || defaultCard.panelBackground;
+
   return (
-    <article className="relative h-[448px] w-[320px] shrink-0 rounded-[28px] border-8 border-black bg-linear-to-b from-slate-900 via-slate-950 to-black p-2 shadow-[0_30px_80px_rgba(0,0,0,0.65)] sm:h-[504px] sm:w-[360px] lg:h-[546px] lg:w-[390px]">
-      <div className="relative flex h-full flex-col gap-2 overflow-hidden rounded-[20px] border-2 border-slate-800 bg-slate-900 p-3">
+    <article
+      className="relative h-[448px] w-[320px] shrink-0 rounded-[28px] border-8 border-black p-2 shadow-[0_30px_80px_rgba(0,0,0,0.65)] sm:h-[504px] sm:w-[360px] lg:h-[546px] lg:w-[390px]"
+      style={{
+        backgroundColor: cardBase,
+        backgroundImage: `linear-gradient(170deg, ${cardBase}, rgba(0,0,0,0.85))`,
+      }}
+    >
+      <div
+        className="relative flex h-full flex-col gap-2 overflow-hidden rounded-[20px] border-2 p-3"
+        style={{
+          borderColor: card.frameAccent,
+          backgroundColor: cardBase,
+          backgroundImage:
+            "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.25))",
+        }}
+      >
         <header
           className="flex h-10 shrink-0 items-center justify-between rounded-xl border-2 px-3 py-1 shadow-[inset_0_0_0_2px_rgba(255,255,255,0.06)]"
           style={{
             borderColor: card.frameAccent,
-            background:
-              "linear-gradient(135deg, rgba(20,28,65,0.95), rgba(57,78,140,0.95))",
+            backgroundColor: panelBase,
           }}
         >
           <h1
@@ -159,9 +241,9 @@ function CardPreview({ card, artImage }: CardPreviewProps) {
           className="relative min-h-0 flex-1 rounded-xl border-2 p-4"
           style={{
             borderColor: card.frameAccent,
-            background:
-              "linear-gradient(160deg, rgba(50,67,121,0.98), rgba(33,45,87,0.96))",
-            backgroundColor: card.panelBackground,
+            backgroundColor: panelBase,
+            backgroundImage:
+              "linear-gradient(155deg, rgba(255,255,255,0.08), rgba(0,0,0,0.15))",
           }}
         >
           <p
@@ -176,8 +258,7 @@ function CardPreview({ card, artImage }: CardPreviewProps) {
           className="grid h-10 shrink-0 grid-cols-3 rounded-xl border-2 px-4 py-1 text-2xl font-semibold"
           style={{
             borderColor: card.frameAccent,
-            background:
-              "linear-gradient(135deg, rgba(33,46,95,0.95), rgba(48,64,124,0.95))",
+            backgroundColor: panelBase,
             color: card.titleColor,
           }}
         >
@@ -263,6 +344,22 @@ function sortByNewest(cards: CardRecord[]): CardRecord[] {
   );
 }
 
+function ensureCardState(value: unknown): CardState | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const candidate = value as Partial<CardState>;
+  return {
+    ...defaultCard,
+    ...candidate,
+  };
+}
+
+function getThemeById(themeId: string): CardTheme | undefined {
+  return cardThemes.find((theme) => theme.id === themeId);
+}
+
 async function ensureDirectoryPermission(
   handle: DirectoryHandleLike,
   shouldPrompt: boolean,
@@ -307,15 +404,33 @@ async function readLibraryFile(
 
     return {
       version: typeof parsed.version === "number" ? parsed.version : 1,
-      cards: parsed.cards.filter(
-        (entry): entry is CardRecord =>
-          typeof entry === "object" &&
-          entry !== null &&
-          typeof entry.id === "string" &&
-          typeof entry.name === "string" &&
-          typeof entry.updatedAt === "string" &&
-          typeof entry.card === "object",
-      ),
+      cards: parsed.cards.reduce<CardRecord[]>((acc, entry) => {
+        if (typeof entry !== "object" || entry === null) {
+          return acc;
+        }
+
+        const candidate = entry as Partial<CardRecord>;
+        const normalizedCard = ensureCardState(candidate.card);
+
+        if (
+          typeof candidate.id !== "string" ||
+          typeof candidate.name !== "string" ||
+          typeof candidate.updatedAt !== "string" ||
+          !normalizedCard
+        ) {
+          return acc;
+        }
+
+        acc.push({
+          id: candidate.id,
+          name: candidate.name,
+          updatedAt: candidate.updatedAt,
+          artImage:
+            typeof candidate.artImage === "string" ? candidate.artImage : null,
+          card: normalizedCard,
+        });
+        return acc;
+      }, []),
     };
   } catch {
     return emptyLibraryFile;
@@ -359,6 +474,9 @@ async function wait(durationMs: number) {
 
 export default function Home() {
   const [card, setCard] = useState<CardState>(defaultCard);
+  const [selectedThemeId, setSelectedThemeId] = useState<string>(
+    cardThemes[0].id,
+  );
   const [artImage, setArtImage] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"builder" | "library">(
     "builder",
@@ -494,6 +612,24 @@ export default function Home() {
 
   const clearArt = () => {
     setArtImage(null);
+  };
+
+  const applyTheme = (themeId: string) => {
+    const theme = getThemeById(themeId);
+    if (!theme) {
+      return;
+    }
+
+    setSelectedThemeId(theme.id);
+    setCard((current) => ({
+      ...current,
+      cardBackground: theme.cardBackground,
+      artBackground: theme.artBackground,
+      panelBackground: theme.panelBackground,
+      frameAccent: theme.frameAccent,
+      titleColor: theme.titleColor,
+      bodyTextColor: theme.bodyTextColor,
+    }));
   };
 
   const pickCardsFolder = async () => {
@@ -640,8 +776,15 @@ export default function Home() {
   };
 
   const loadRecordToBuilder = (record: CardRecord) => {
-    setCard(record.card);
+    const normalizedCard = ensureCardState(record.card);
+    if (!normalizedCard) {
+      setStorageMessage("This card entry is invalid and could not be loaded.");
+      return;
+    }
+
+    setCard(normalizedCard);
     setArtImage(record.artImage);
+    setSelectedThemeId("");
     setActiveView("builder");
     setStorageMessage(`Loaded ${record.name} from cards.json.`);
   };
@@ -955,13 +1098,59 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3 xl:col-span-2">
+                  <label
+                    className="text-sm font-medium text-slate-200"
+                    htmlFor="theme"
+                  >
+                    Theme preset
+                  </label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <select
+                      id="theme"
+                      value={selectedThemeId}
+                      onChange={(event) => {
+                        applyTheme(event.target.value);
+                      }}
+                      className="min-w-[220px] rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                    >
+                      {selectedThemeId === "" && (
+                        <option value="">Custom</option>
+                      )}
+                      {cardThemes.map((theme) => (
+                        <option key={theme.id} value={theme.id}>
+                          {theme.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-slate-400">
+                      Applies coordinated card, art, panel, and accent colors.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 xl:col-span-2">
+                  <label className="space-y-2 text-sm font-medium text-slate-200">
+                    Card color
+                    <input
+                      type="color"
+                      value={card.cardBackground}
+                      onChange={(event) => {
+                        setSelectedThemeId("");
+                        onFieldChange("cardBackground")(event);
+                      }}
+                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
+                    />
+                  </label>
                   <label className="space-y-2 text-sm font-medium text-slate-200">
                     Art background
                     <input
                       type="color"
                       value={card.artBackground}
-                      onChange={onFieldChange("artBackground")}
+                      onChange={(event) => {
+                        setSelectedThemeId("");
+                        onFieldChange("artBackground")(event);
+                      }}
                       className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
                     />
                   </label>
@@ -970,7 +1159,10 @@ export default function Home() {
                     <input
                       type="color"
                       value={card.panelBackground}
-                      onChange={onFieldChange("panelBackground")}
+                      onChange={(event) => {
+                        setSelectedThemeId("");
+                        onFieldChange("panelBackground")(event);
+                      }}
                       className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
                     />
                   </label>
@@ -982,7 +1174,10 @@ export default function Home() {
                     <input
                       type="color"
                       value={card.frameAccent}
-                      onChange={onFieldChange("frameAccent")}
+                      onChange={(event) => {
+                        setSelectedThemeId("");
+                        onFieldChange("frameAccent")(event);
+                      }}
                       className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
                     />
                   </label>
@@ -991,7 +1186,10 @@ export default function Home() {
                     <input
                       type="color"
                       value={card.titleColor}
-                      onChange={onFieldChange("titleColor")}
+                      onChange={(event) => {
+                        setSelectedThemeId("");
+                        onFieldChange("titleColor")(event);
+                      }}
                       className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
                     />
                   </label>
@@ -1000,7 +1198,10 @@ export default function Home() {
                     <input
                       type="color"
                       value={card.bodyTextColor}
-                      onChange={onFieldChange("bodyTextColor")}
+                      onChange={(event) => {
+                        setSelectedThemeId("");
+                        onFieldChange("bodyTextColor")(event);
+                      }}
                       className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
                     />
                   </label>
@@ -1040,6 +1241,7 @@ export default function Home() {
                   onClick={() => {
                     clearArt();
                     setCard(defaultCard);
+                    setSelectedThemeId(cardThemes[0].id);
                   }}
                   className="rounded-lg border border-slate-600 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-300 hover:text-white"
                 >
