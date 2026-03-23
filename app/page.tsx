@@ -1,5 +1,19 @@
 "use client";
 
+import {
+  CardLibraryFile,
+  CardRecord,
+  CardState,
+  cardThemes,
+  defaultCard,
+  emptyLibraryFile,
+  ensureCardState,
+  getThemeById,
+  sortByNewest,
+  ThemeColorField,
+} from "./card-builder";
+import { TextAndStatsSection } from "./components/TextAndStatsSection";
+import { ThemeAppearanceSection } from "./components/ThemeAppearanceSection";
 import { toPng } from "html-to-image";
 import Image from "next/image";
 import {
@@ -11,49 +25,6 @@ import {
   useRef,
   useState,
 } from "react";
-
-type CardState = {
-  title: string;
-  icon: string;
-  description: string;
-  descriptionAlign: "left" | "center" | "right";
-  descriptionPosition: "top" | "center" | "bottom";
-  footerLeft: string;
-  footerCenter: string;
-  footerRight: string;
-  cardBackground: string;
-  artBackground: string;
-  panelBackground: string;
-  frameAccent: string;
-  titleColor: string;
-  bodyTextColor: string;
-  artOffsetX: number;
-  artOffsetY: number;
-};
-
-type CardTheme = {
-  id: string;
-  label: string;
-  cardBackground: string;
-  artBackground: string;
-  panelBackground: string;
-  frameAccent: string;
-  titleColor: string;
-  bodyTextColor: string;
-};
-
-type CardRecord = {
-  id: string;
-  name: string;
-  card: CardState;
-  artImage: string | null;
-  updatedAt: string;
-};
-
-type CardLibraryFile = {
-  version: number;
-  cards: CardRecord[];
-};
 
 type PermissionMode = "read" | "readwrite";
 
@@ -91,85 +62,6 @@ const DB_STORE = "settings";
 const DB_DIRECTORY_KEY = "cards-directory-handle";
 const DB_EXPORT_DIRECTORY_KEY = "export-directory-handle";
 const CARD_JSON_FILE = "cards.json";
-
-const defaultCard: CardState = {
-  title: "Title",
-  icon: "💧",
-  description: "Description",
-  descriptionAlign: "center",
-  descriptionPosition: "center",
-  footerLeft: "0",
-  footerCenter: "0",
-  footerRight: "0",
-  cardBackground: "#0b1020",
-  artBackground: "#3f0004",
-  panelBackground: "#324379",
-  frameAccent: "#4fa2ff",
-  titleColor: "#f6f7ff",
-  bodyTextColor: "#f8f9ff",
-  artOffsetX: 50,
-  artOffsetY: 50,
-};
-
-const cardThemes: CardTheme[] = [
-  {
-    id: "blue",
-    label: "Blue",
-    cardBackground: "#0b1020",
-    artBackground: "#11356f",
-    panelBackground: "#1f3d8d",
-    frameAccent: "#4fa2ff",
-    titleColor: "#f6f7ff",
-    bodyTextColor: "#eff6ff",
-  },
-  {
-    id: "red",
-    label: "Red",
-    cardBackground: "#221008",
-    artBackground: "#5f1408",
-    panelBackground: "#7c2d12",
-    frameAccent: "#ff8a3d",
-    titleColor: "#fff4e8",
-    bodyTextColor: "#fff0dc",
-  },
-  {
-    id: "green",
-    label: "Green",
-    cardBackground: "#102219",
-    artBackground: "#114d3f",
-    panelBackground: "#1a7a5d",
-    frameAccent: "#70e1ae",
-    titleColor: "#effff7",
-    bodyTextColor: "#e2fff2",
-  },
-  {
-    id: "purple",
-    label: "Purple",
-    cardBackground: "#190f2b",
-    artBackground: "#33135d",
-    panelBackground: "#4f1f88",
-    frameAccent: "#d2a8ff",
-    titleColor: "#fbf5ff",
-    bodyTextColor: "#f4ebff",
-  },
-  {
-    id: "yellow",
-    label: "Yellow",
-    cardBackground: "#2a200b",
-    artBackground: "#6e5310",
-    panelBackground: "#9a7212",
-    frameAccent: "#ffd776",
-    titleColor: "#fff8e5",
-    bodyTextColor: "#fff3cf",
-  },
-];
-
-const iconSuggestions = ["💧", "🔥", "🌿", "☠", "⚡", "❄", "✨", "🛡"];
-
-const emptyLibraryFile: CardLibraryFile = {
-  version: 1,
-  cards: [],
-};
 
 type CardPreviewProps = {
   card: CardState;
@@ -461,28 +353,6 @@ function toCardId(input: string): string {
   );
 }
 
-function sortByNewest(cards: CardRecord[]): CardRecord[] {
-  return [...cards].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
-}
-
-function ensureCardState(value: unknown): CardState | null {
-  if (typeof value !== "object" || value === null) {
-    return null;
-  }
-
-  const candidate = value as Partial<CardState>;
-  return {
-    ...defaultCard,
-    ...candidate,
-  };
-}
-
-function getThemeById(themeId: string): CardTheme | undefined {
-  return cardThemes.find((theme) => theme.id === themeId);
-}
-
 async function ensureDirectoryPermission(
   handle: DirectoryHandleLike,
   shouldPrompt: boolean,
@@ -600,6 +470,7 @@ export default function Home() {
   const [selectedThemeId, setSelectedThemeId] = useState<string>(
     cardThemes[0].id,
   );
+  const [isColorControlsOpen, setIsColorControlsOpen] = useState(false);
   const [artImage, setArtImage] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"builder" | "library">(
     "builder",
@@ -713,6 +584,10 @@ export default function Home() {
     void restoreExportFolder();
   }, []);
 
+  useEffect(() => {
+    setIsColorControlsOpen(selectedThemeId === "");
+  }, [selectedThemeId]);
+
   const onFieldChange =
     (key: keyof CardState) =>
     (
@@ -753,6 +628,12 @@ export default function Home() {
       artOffsetY: y,
     }));
   };
+
+  const onThemeColorFieldChange =
+    (key: ThemeColorField) => (event: ChangeEvent<HTMLInputElement>) => {
+      setSelectedThemeId("");
+      onFieldChange(key)(event);
+    };
 
   const applyTheme = (themeId: string) => {
     const theme = getThemeById(themeId);
@@ -1152,95 +1033,22 @@ export default function Home() {
           {activeView === "builder" ? (
             <>
               <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                <div className="space-y-3">
-                  <label
-                    className="text-sm font-medium text-slate-200"
-                    htmlFor="title"
-                  >
-                    Title
-                  </label>
-                  <input
-                    id="title"
-                    value={card.title}
-                    onChange={onFieldChange("title")}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <label
-                    className="text-sm font-medium text-slate-200"
-                    htmlFor="icon"
-                  >
-                    Icon
-                  </label>
-                  <div className="flex gap-3">
-                    <input
-                      id="icon"
-                      value={card.icon}
-                      onChange={onFieldChange("icon")}
-                      maxLength={2}
-                      className="w-20 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-center text-xl text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      {iconSuggestions.map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() =>
-                            setCard((current) => ({ ...current, icon: value }))
-                          }
-                          className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xl transition hover:border-cyan-300"
-                        >
-                          {value}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 xl:col-span-2">
-                  <label
-                    className="text-sm font-medium text-slate-200"
-                    htmlFor="description"
-                  >
-                    Description
-                  </label>
-                  <textarea
-                    id="description"
-                    value={card.description}
-                    onChange={onFieldChange("description")}
-                    rows={5}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 xl:col-span-2">
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Description align
-                    <select
-                      value={card.descriptionAlign}
-                      onChange={onFieldChange("descriptionAlign")}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    >
-                      <option value="left">Left</option>
-                      <option value="center">Center</option>
-                      <option value="right">Right</option>
-                    </select>
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Description position
-                    <select
-                      value={card.descriptionPosition}
-                      onChange={onFieldChange("descriptionPosition")}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    >
-                      <option value="top">Top</option>
-                      <option value="center">Center</option>
-                      <option value="bottom">Bottom</option>
-                    </select>
-                  </label>
-                </div>
+                <TextAndStatsSection
+                  card={card}
+                  onFieldChange={onFieldChange}
+                  onIconSuggestion={(icon) => {
+                    setCard((current) => ({ ...current, icon }));
+                  }}
+                  onDescriptionAlignChange={(descriptionAlign) => {
+                    setCard((current) => ({ ...current, descriptionAlign }));
+                  }}
+                  onDescriptionPositionChange={(descriptionPosition) => {
+                    setCard((current) => ({
+                      ...current,
+                      descriptionPosition,
+                    }));
+                  }}
+                />
 
                 <div className="space-y-3">
                   <label
@@ -1276,147 +1084,18 @@ export default function Home() {
                       Center image
                     </button>
                   </div>
-                  <p className="text-xs text-slate-400">
-                    Drag directly on the artwork to reposition it inside the
-                    frame.
-                  </p>
                 </div>
 
-                <div className="space-y-3 xl:col-span-2">
-                  <label
-                    className="text-sm font-medium text-slate-200"
-                    htmlFor="theme"
-                  >
-                    Theme preset
-                  </label>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <select
-                      id="theme"
-                      value={selectedThemeId}
-                      onChange={(event) => {
-                        applyTheme(event.target.value);
-                      }}
-                      className="min-w-[220px] rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    >
-                      {selectedThemeId === "" && (
-                        <option value="">Custom</option>
-                      )}
-                      {cardThemes.map((theme) => (
-                        <option key={theme.id} value={theme.id}>
-                          {theme.label}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-xs text-slate-400">
-                      Applies coordinated card, art, panel, and accent colors.
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 xl:col-span-2">
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Card color
-                    <input
-                      type="color"
-                      value={card.cardBackground}
-                      onChange={(event) => {
-                        setSelectedThemeId("");
-                        onFieldChange("cardBackground")(event);
-                      }}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Art background
-                    <input
-                      type="color"
-                      value={card.artBackground}
-                      onChange={(event) => {
-                        setSelectedThemeId("");
-                        onFieldChange("artBackground")(event);
-                      }}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Panel color
-                    <input
-                      type="color"
-                      value={card.panelBackground}
-                      onChange={(event) => {
-                        setSelectedThemeId("");
-                        onFieldChange("panelBackground")(event);
-                      }}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 xl:col-span-2">
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Frame accent
-                    <input
-                      type="color"
-                      value={card.frameAccent}
-                      onChange={(event) => {
-                        setSelectedThemeId("");
-                        onFieldChange("frameAccent")(event);
-                      }}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Title text
-                    <input
-                      type="color"
-                      value={card.titleColor}
-                      onChange={(event) => {
-                        setSelectedThemeId("");
-                        onFieldChange("titleColor")(event);
-                      }}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Body text
-                    <input
-                      type="color"
-                      value={card.bodyTextColor}
-                      onChange={(event) => {
-                        setSelectedThemeId("");
-                        onFieldChange("bodyTextColor")(event);
-                      }}
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 xl:col-span-2">
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Left stat
-                    <input
-                      value={card.footerLeft}
-                      onChange={onFieldChange("footerLeft")}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Center stat
-                    <input
-                      value={card.footerCenter}
-                      onChange={onFieldChange("footerCenter")}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-slate-200">
-                    Right stat
-                    <input
-                      value={card.footerRight}
-                      onChange={onFieldChange("footerRight")}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
-                    />
-                  </label>
-                </div>
+                <ThemeAppearanceSection
+                  card={card}
+                  selectedThemeId={selectedThemeId}
+                  isColorControlsOpen={isColorControlsOpen}
+                  onThemeChange={applyTheme}
+                  onToggleColorControls={() => {
+                    setIsColorControlsOpen((current) => !current);
+                  }}
+                  onColorFieldChange={onThemeColorFieldChange}
+                />
               </div>
 
               <div className="mt-8 flex flex-wrap items-center gap-3">
