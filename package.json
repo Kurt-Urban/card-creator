@@ -1,11 +1,18 @@
 {
   "name": "enchunted",
   "version": "0.1.0",
+  "main": "electron/main.cjs",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -k \"pnpm dev:web\" \"pnpm dev:electron\"",
+    "dev:web": "next dev",
+    "dev:electron": "wait-on tcp:3000 && cross-env ELECTRON_DEV_SERVER_URL=http://127.0.0.1:3000 electron .",
     "build": "next build",
+    "build:app": "pnpm build && electron-builder",
+    "build:mac": "pnpm build && electron-builder --mac",
+    "build:win": "pnpm build && electron-builder --win",
     "start": "next start",
+    "start:electron": "electron .",
     "lint": "eslint"
   },
   "dependencies": {
@@ -20,10 +27,40 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.1",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wait-on": "^9.0.4"
+  },
+  "build": {
+    "appId": "com.enchunted.cardcreator",
+    "productName": "Enchunted Card Creator",
+    "files": [
+      "electron/**/*",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.graphics-design"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "directories": {
+      "output": "dist-electron"
+    }
   }
 }

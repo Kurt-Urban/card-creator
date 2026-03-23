@@ -1,0 +1,128 @@
+name: Release Desktop Apps
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: mac
+          - os: windows-latest
+            target: win
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installer
+        run: pnpm run build:${{ matrix.target }}
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            dist-electron/**/*.dmg
+            dist-electron/**/*.exe
+          fail_on_unmatched_files: false
+
+  update-readme-links:
+    name: Update README Download Links
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update README from latest release assets
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = "README.md";
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const { data: release } = await github.rest.repos.getLatestRelease({ owner, repo });
+            const assets = release.assets || [];
+
+            const windowsAsset = assets.find((asset) => /\\.exe$/i.test(asset.name));
+            const macAsset = assets.find((asset) => /\\.dmg$/i.test(asset.name));
+
+            const sectionLines = [
+              "## Download Installers",
+              "",
+              `Latest release: [${release.tag_name}](${release.html_url})`,
+              "",
+              windowsAsset
+                ? `- Windows (.exe): [${windowsAsset.name}](${windowsAsset.browser_download_url})`
+                : "- Windows (.exe): Not available in latest release",
+              macAsset
+                ? `- macOS (.dmg): [${macAsset.name}](${macAsset.browser_download_url})`
+                : "- macOS (.dmg): Not available in latest release",
+              "",
+              "<!-- INSTALLER_LINKS:START -->",
+              `Generated from release ${release.tag_name}.`,
+              "<!-- INSTALLER_LINKS:END -->",
+            ];
+
+            const nextSection = sectionLines.join("\\n");
+            const readme = fs.readFileSync(path, "utf8");
+
+            const markerStart = "<!-- DOWNLOAD_SECTION:START -->";
+            const markerEnd = "<!-- DOWNLOAD_SECTION:END -->";
+
+            let updated;
+            if (readme.includes(markerStart) && readme.includes(markerEnd)) {
+              const matcher = new RegExp(`${markerStart}[\\s\\S]*?${markerEnd}`, "m");
+              updated = readme.replace(
+                matcher,
+                `${markerStart}\\n${nextSection}\\n${markerEnd}`,
+              );
+            } else {
+              updated = `${readme.trimEnd()}\\n\\n${markerStart}\\n${nextSection}\\n${markerEnd}\\n`;
+            }
+
+            fs.writeFileSync(path, updated);
+
+      - name: Commit README update
+        run: |
+          if git diff --quiet -- README.md; then
+            echo "No README changes"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs: update installer download links [skip-tag]"
+          git push origin HEAD:main
