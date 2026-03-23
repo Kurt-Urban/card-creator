@@ -15,6 +15,8 @@ type CardState = {
   title: string;
   icon: string;
   description: string;
+  descriptionAlign: "left" | "center" | "right";
+  descriptionPosition: "top" | "center" | "bottom";
   footerLeft: string;
   footerCenter: string;
   footerRight: string;
@@ -91,6 +93,8 @@ const defaultCard: CardState = {
   title: "Title",
   icon: "💧",
   description: "Description",
+  descriptionAlign: "center",
+  descriptionPosition: "center",
   footerLeft: "0",
   footerCenter: "0",
   footerRight: "0",
@@ -170,6 +174,14 @@ type CardPreviewProps = {
 function CardPreview({ card, artImage }: CardPreviewProps) {
   const cardBase = card.cardBackground || defaultCard.cardBackground;
   const panelBase = card.panelBackground || defaultCard.panelBackground;
+  const descriptionVerticalAlign: Record<
+    CardState["descriptionPosition"],
+    string
+  > = {
+    top: "flex-start",
+    center: "center",
+    bottom: "flex-end",
+  };
 
   return (
     <article
@@ -246,12 +258,23 @@ function CardPreview({ card, artImage }: CardPreviewProps) {
               "linear-gradient(155deg, rgba(255,255,255,0.08), rgba(0,0,0,0.15))",
           }}
         >
-          <p
-            className="h-full overflow-y-auto text-lg leading-relaxed"
-            style={{ color: card.bodyTextColor }}
+          <div
+            className="flex h-full flex-col overflow-y-auto"
+            style={{
+              justifyContent:
+                descriptionVerticalAlign[card.descriptionPosition],
+            }}
           >
-            {card.description || "Add your card description here."}
-          </p>
+            <p
+              className="w-full whitespace-pre-wrap text-lg leading-relaxed"
+              style={{
+                color: card.bodyTextColor,
+                textAlign: card.descriptionAlign,
+              }}
+            >
+              {card.description || "Add your card description here."}
+            </p>
+          </div>
         </div>
 
         <footer
@@ -592,7 +615,11 @@ export default function Home() {
 
   const onFieldChange =
     (key: keyof CardState) =>
-    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    (
+      event: ChangeEvent<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >,
+    ) => {
       setCard((current) => ({ ...current, [key]: event.target.value }));
     };
 
@@ -1069,6 +1096,33 @@ export default function Home() {
                     rows={5}
                     className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 xl:col-span-2">
+                  <label className="space-y-2 text-sm font-medium text-slate-200">
+                    Description align
+                    <select
+                      value={card.descriptionAlign}
+                      onChange={onFieldChange("descriptionAlign")}
+                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                    >
+                      <option value="left">Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </label>
+                  <label className="space-y-2 text-sm font-medium text-slate-200">
+                    Description position
+                    <select
+                      value={card.descriptionPosition}
+                      onChange={onFieldChange("descriptionPosition")}
+                      className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-slate-100 outline-none ring-cyan-400 transition focus:ring-2"
+                    >
+                      <option value="top">Top</option>
+                      <option value="center">Center</option>
+                      <option value="bottom">Bottom</option>
+                    </select>
+                  </label>
                 </div>
 
                 <div className="space-y-3">
