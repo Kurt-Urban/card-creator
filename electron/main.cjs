@@ -4,7 +4,7 @@ const { spawn } = require("node:child_process");
 const net = require("node:net");
 const path = require("node:path");
 
-const PORT = process.env.PORT || "3000";
+const DEFAULT_PORT = 3000;
 const HOST = "127.0.0.1";
 let mainWindow;
 let nextServerProcess;
@@ -39,7 +39,67 @@ function getStandaloneServerPath() {
   return path.join(app.getAppPath(), ".next", "standalone", "server.js");
 }
 
-function startNextServer() {
+function canListenOnPort(port, host) {
+  return new Promise((resolve) => {
+    const tester = net.createServer();
+
+    tester.once("error", () => {
+      resolve(false);
+    });
+
+    tester.once("listening", () => {
+      tester.close(() => {
+        resolve(true);
+      });
+    });
+
+    tester.listen(port, host);
+  });
+}
+
+function reserveEphemeralPort(host) {
+  return new Promise((resolve, reject) => {
+    const tester = net.createServer();
+
+    tester.once("error", (error) => {
+      reject(error);
+    });
+
+    tester.listen(0, host, () => {
+      const address = tester.address();
+
+      if (!address || typeof address !== "object") {
+        reject(new Error("Unable to determine ephemeral port"));
+        return;
+      }
+
+      const { port } = address;
+      tester.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(port);
+      });
+    });
+  });
+}
+
+async function getAvailablePort(host) {
+  const requestedPort = Number.parseInt(process.env.PORT ?? "", 10);
+  const preferredPort = Number.isFinite(requestedPort)
+    ? requestedPort
+    : DEFAULT_PORT;
+
+  if (await canListenOnPort(preferredPort, host)) {
+    return preferredPort;
+  }
+
+  return reserveEphemeralPort(host);
+}
+
+function startNextServer(port) {
   const serverPath = getStandaloneServerPath();
 
   nextServerProcess = spawn(process.execPath, [serverPath], {
@@ -47,7 +107,7 @@ function startNextServer() {
     env: {
       ...process.env,
       HOSTNAME: HOST,
-      PORT,
+      PORT: String(port),
       NODE_ENV: "production",
       ELECTRON_RUN_AS_NODE: "1",
     },
@@ -85,9 +145,11 @@ async function createWindow() {
     return;
   }
 
-  startNextServer();
-  await waitForPort(PORT, HOST);
-  await mainWindow.loadURL(`http://${HOST}:${PORT}`);
+  const port = await getAvailablePort(HOST);
+
+  startNextServer(port);
+  await waitForPort(port, HOST);
+  await mainWindow.loadURL(`http://${HOST}:${port}`);
 }
 
 function cleanupServer() {

@@ -99,8 +99,8 @@ jobs:
         with:
           tag_name: ${{ needs.resolve-tag.outputs.release_tag }}
           files: |
-            dist-electron/**/*.dmg
-            dist-electron/**/*.exe
+            dist-electron/*.dmg
+            dist-electron/*Setup*.exe
           fail_on_unmatched_files: false
 
   update-readme-links:
@@ -127,7 +127,9 @@ jobs:
             const { data: release } = await github.rest.repos.getLatestRelease({ owner, repo });
             const assets = release.assets || [];
 
-            const windowsAsset = assets.find((asset) => /\\.exe$/i.test(asset.name));
+            const windowsAsset =
+              assets.find((asset) => /setup.*\\.exe$/i.test(asset.name)) ||
+              assets.find((asset) => /\\.exe$/i.test(asset.name) && !/elevate/i.test(asset.name));
             const macAsset = assets.find((asset) => /\\.dmg$/i.test(asset.name));
 
             const sectionLines = [

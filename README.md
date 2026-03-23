@@ -35,6 +35,9 @@ pnpm build
 
 ## Build Desktop Installers
 
+Electron packaging automatically runs a prep step that copies Next static/public
+assets into the standalone output used by Electron.
+
 Build both targets from your current OS settings:
 
 ```bash
