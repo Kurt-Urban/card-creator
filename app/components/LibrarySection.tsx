@@ -16,6 +16,7 @@ type LibrarySectionProps = {
   exportDirectoryHandleAvailable: boolean;
   onPickExportFolder: () => void;
   onExportAll: () => void;
+  onExportSheet: () => void;
   onReload: () => void;
   onPageChange: (page: number) => void;
   onLoadRecord: (entry: CardRecord) => void;
@@ -35,6 +36,7 @@ export function LibrarySection({
   exportDirectoryHandleAvailable,
   onPickExportFolder,
   onExportAll,
+  onExportSheet,
   onReload,
   onPageChange,
   onLoadRecord,
@@ -60,14 +62,24 @@ export function LibrarySection({
                 : "Choose export folder"}
           </button>
           {libraryCards.length > 0 && (
-            <button
-              type="button"
-              onClick={onExportAll}
-              disabled={isExporting}
-              className="rounded-lg border border-emerald-500/70 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isExporting ? "Exporting..." : "Export all PNGs"}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onExportAll}
+                disabled={isExporting}
+                className="rounded-lg border border-emerald-500/70 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isExporting ? "Exporting..." : "Export all PNGs"}
+              </button>
+              <button
+                type="button"
+                onClick={onExportSheet}
+                disabled={isExporting}
+                className="rounded-lg border border-violet-500/70 bg-violet-500/10 px-3 py-2 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isExporting ? "Exporting..." : "Export TTS sheet"}
+              </button>
+            </>
           )}
           {directoryHandleAvailable && (
             <button

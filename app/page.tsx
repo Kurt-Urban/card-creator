@@ -71,6 +71,7 @@ const DB_DIRECTORY_KEY = "cards-directory-handle";
 const DB_EXPORT_DIRECTORY_KEY = "export-directory-handle";
 const CARD_JSON_FILE = "cards.json";
 const LIBRARY_PAGE_SIZE = 24;
+const SHEET_COLS = 10;
 
 type CardPreviewProps = {
   card: CardState;
@@ -292,6 +293,268 @@ function CardPreview({ card, artImage, onArtOffsetChange }: CardPreviewProps) {
         </footer>
       </div>
     </article>
+  );
+}
+
+function StaticCardPreview({
+  card,
+  artImage,
+}: {
+  card: CardState;
+  artImage: string | null;
+}) {
+  const cardBase = card.cardBackground || defaultCard.cardBackground;
+  const panelBase = card.panelBackground || defaultCard.panelBackground;
+  const descriptionVerticalAlign: Record<
+    CardState["descriptionPosition"],
+    string
+  > = {
+    top: "flex-start",
+    center: "center",
+    bottom: "flex-end",
+  };
+  return (
+    <article
+      style={{
+        position: "relative",
+        width: 320,
+        height: 448,
+        flexShrink: 0,
+        borderRadius: 28,
+        border: "8px solid black",
+        padding: 8,
+        boxSizing: "border-box",
+        backgroundColor: cardBase,
+        backgroundImage: `linear-gradient(170deg, ${cardBase}, rgba(0,0,0,0.85))`,
+        boxShadow: "0 30px 80px rgba(0,0,0,0.65)",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          height: "100%",
+          flexDirection: "column",
+          gap: 8,
+          overflow: "hidden",
+          borderRadius: 20,
+          border: `2px solid ${card.frameAccent}`,
+          padding: 12,
+          boxSizing: "border-box",
+          backgroundColor: cardBase,
+          backgroundImage:
+            "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.25))",
+        }}
+      >
+        <header
+          style={{
+            display: "flex",
+            height: 40,
+            flexShrink: 0,
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderRadius: 12,
+            border: `2px solid ${card.frameAccent}`,
+            padding: "4px 12px",
+            boxSizing: "border-box",
+            boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.06)",
+            backgroundColor: panelBase,
+          }}
+        >
+          <h1
+            style={{
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              fontSize: 18,
+              fontWeight: 600,
+              letterSpacing: "0.025em",
+              color: card.titleColor,
+            }}
+          >
+            {card.title || "Untitled"}
+          </h1>
+          <span
+            style={{
+              marginLeft: 8,
+              display: "inline-flex",
+              height: 28,
+              width: 28,
+              flexShrink: 0,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "50%",
+              border: `1px solid ${card.frameAccent}`,
+              fontSize: 14,
+              color: card.titleColor,
+              backgroundColor: "rgba(0,0,0,0.35)",
+            }}
+          >
+            {card.icon || "★"}
+          </span>
+        </header>
+
+        <div
+          style={{
+            position: "relative",
+            minHeight: 0,
+            flex: "0 0 45%",
+            overflow: "hidden",
+            borderRadius: 12,
+            border: `2px solid ${card.frameAccent}`,
+            backgroundColor: card.artBackground,
+          }}
+        >
+          {artImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={artImage}
+              alt="Card art"
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                objectPosition: `${card.artOffsetX}% ${card.artOffsetY}%`,
+                userSelect: "none",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                height: "100%",
+                width: "100%",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <span style={{ fontSize: 96, opacity: 0.7 }}>
+                {card.icon || "★"}
+              </span>
+            </div>
+          )}
+          <div
+            style={{
+              pointerEvents: "none",
+              position: "absolute",
+              inset: 0,
+              background:
+                "radial-gradient(circle at center, transparent 45%, rgba(0,0,0,0.5) 100%)",
+            }}
+          />
+        </div>
+
+        <div
+          style={{
+            position: "relative",
+            minHeight: 0,
+            flex: 1,
+            borderRadius: 12,
+            border: `2px solid ${card.frameAccent}`,
+            padding: 16,
+            boxSizing: "border-box",
+            backgroundColor: panelBase,
+            backgroundImage:
+              "linear-gradient(155deg, rgba(255,255,255,0.08), rgba(0,0,0,0.15))",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              height: "100%",
+              flexDirection: "column",
+              overflowY: "auto",
+              justifyContent:
+                descriptionVerticalAlign[card.descriptionPosition],
+            }}
+          >
+            <p
+              style={{
+                width: "100%",
+                whiteSpace: "pre-wrap",
+                fontSize: 18,
+                lineHeight: "1.625",
+                color: card.bodyTextColor,
+                textAlign: card.descriptionAlign,
+              }}
+            >
+              {card.description || "Add your card description here."}
+            </p>
+          </div>
+        </div>
+
+        <footer
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            height: 40,
+            flexShrink: 0,
+            borderRadius: 12,
+            border: `2px solid ${card.frameAccent}`,
+            padding: "4px 16px",
+            boxSizing: "border-box",
+            fontSize: 24,
+            fontWeight: 600,
+            backgroundColor: panelBase,
+            color: card.titleColor,
+          }}
+        >
+          <span>{card.footerLeft}</span>
+          <span style={{ textAlign: "center" }}>{card.footerCenter}</span>
+          <span style={{ textAlign: "right" }}>{card.footerRight}</span>
+        </footer>
+      </div>
+    </article>
+  );
+}
+
+function HiddenCardSlot() {
+  return (
+    <div
+      style={{
+        width: 320,
+        height: 448,
+        flexShrink: 0,
+        borderRadius: 28,
+        border: "8px solid black",
+        padding: 8,
+        boxSizing: "border-box",
+        backgroundColor: "#0b1020",
+        backgroundImage: "linear-gradient(170deg, #0b1020, rgba(0,0,0,0.85))",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          height: "100%",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 12,
+          overflow: "hidden",
+          borderRadius: 20,
+          border: "2px solid #4fa2ff",
+          backgroundImage:
+            "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.25))",
+        }}
+      >
+        <span style={{ fontSize: 72, opacity: 0.6 }}>🂠</span>
+        <span
+          style={{
+            fontSize: 16,
+            fontWeight: 700,
+            color: "#eff6ff",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+          }}
+        >
+          Hidden Card
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -527,6 +790,8 @@ export default function Home() {
     "Choose a local folder to store cards.json",
   );
   const exportRef = useRef<HTMLDivElement | null>(null);
+  const [sheetSlots, setSheetSlots] = useState<(CardRecord | null)[]>([]);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
 
   const [isPickerSupported, setIsPickerSupported] = useState(false);
 
@@ -1112,6 +1377,57 @@ export default function Home() {
     }
   };
 
+  const exportLibrarySheet = async () => {
+    if (libraryCards.length === 0) {
+      setStorageMessage("No saved cards to export as sheet.");
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const totalSlots =
+        Math.ceil((libraryCards.length + 1) / SHEET_COLS) * SHEET_COLS;
+      const emptyCount = totalSlots - libraryCards.length - 1;
+      const slots: (CardRecord | null)[] = [
+        ...libraryCards,
+        null, // hidden card placed directly after last card
+        ...Array<null>(emptyCount).fill(null),
+      ];
+
+      setSheetSlots(slots);
+
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+
+      if (!sheetRef.current) {
+        setStorageMessage("Sheet export target was not ready.");
+        return;
+      }
+
+      const dataUrl = await toPng(sheetRef.current, {
+        cacheBust: true,
+        pixelRatio: 1,
+      });
+
+      downloadDataUrlAsPng(dataUrl, "card-sheet");
+      const rows = totalSlots / SHEET_COLS;
+      setStorageMessage(
+        `Exported ${libraryCards.length} card${
+          libraryCards.length === 1 ? "" : "s"
+        } as TTS sheet PNG (${SHEET_COLS}×${rows} grid).`,
+      );
+    } catch {
+      setStorageMessage("Sheet PNG export failed.");
+    } finally {
+      setIsExporting(false);
+      setSheetSlots([]);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-indigo-950 px-4 py-8 text-slate-100 md:px-8">
       <div
@@ -1120,6 +1436,41 @@ export default function Home() {
       >
         <div ref={exportRef}>
           <CardPreview card={exportCardState} artImage={exportArtImage} />
+        </div>
+      </div>
+      <div
+        className="pointer-events-none fixed -left-[9999px] top-0 opacity-0"
+        aria-hidden="true"
+      >
+        <div
+          ref={sheetRef}
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            width: SHEET_COLS * 320,
+          }}
+        >
+          {sheetSlots.map((slot, index) => {
+            const isHiddenSlot = index === libraryCards.length;
+            if (slot !== null) {
+              return (
+                <StaticCardPreview
+                  key={slot.id}
+                  card={slot.card}
+                  artImage={slot.artImage}
+                />
+              );
+            }
+            if (isHiddenSlot) {
+              return <HiddenCardSlot key="__hidden__" />;
+            }
+            return (
+              <div
+                key={`__empty_${index}__`}
+                style={{ width: 320, height: 448, flexShrink: 0 }}
+              />
+            );
+          })}
         </div>
       </div>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 lg:flex-row">
@@ -1333,6 +1684,9 @@ export default function Home() {
               onLoadRecord={loadRecordToBuilder}
               onExportRecord={(entry) => {
                 void exportCardAsPng(entry.card, entry.artImage);
+              }}
+              onExportSheet={() => {
+                void exportLibrarySheet();
               }}
             />
           )}
