@@ -13,7 +13,9 @@
     "build:mac": "pnpm run build:electron:prep && electron-builder --mac --publish never",
     "build:win": "pnpm run build:electron:prep && electron-builder --win --publish never",
     "mac:local": "pnpm run build:electron:prep && pnpm run start:electron",
+    "win:local": "pnpm run build:electron:prep && pnpm run start:electron",
     "verify:mac": "pnpm lint && pnpm run build:mac",
+    "verify:win": "pnpm lint && pnpm run build:win",
     "start": "next start",
     "start:electron": "electron .",
     "lint": "eslint"

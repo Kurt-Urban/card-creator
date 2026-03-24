@@ -66,15 +66,24 @@ function main() {
   fs.rmSync(packedStandaloneDepsRoot, { recursive: true, force: true });
 
   // Try to use existing node_modules from packed standalone first (from old builds)
-  // If it doesn't exist, copy from project root
   if (fs.existsSync(packedNodeModulesDir)) {
+      console.log('Moving node_modules from standalone output to standalone-deps...');
     fs.renameSync(packedNodeModulesDir, packedStandaloneDepsRoot);
   } else if (fs.existsSync(projectNodeModulesDir)) {
     console.log(
       'Copying project node_modules to standalone dependencies (pnpm v10+ structure)...',
     );
-    // Copy entire node_modules including .pnpm virtual store structure (required for pnpm v10+)
-    copyDirDereferenced(projectNodeModulesDir, packedStandaloneDepsRoot);
+      // Use simple fs.cpSync instead of dereference which may cause issues
+      // pnpm v10+ stores packages in .pnpm/node_modules which we need to preserve
+      fs.cpSync(projectNodeModulesDir, packedStandaloneDepsRoot, {
+        recursive: true,
+        force: true,
+      });
+      console.log('Verifying dependencies were copied...');
+      const nextPkgPath = path.join(packedStandaloneDepsRoot, 'next', 'package.json');
+      if (!fs.existsSync(nextPkgPath)) {
+        throw new Error(`Failed to copy dependencies: next/package.json not found at ${nextPkgPath}`);
+      }
   } else {
     throw new Error(
       `Missing dependencies: neither ${packedNodeModulesDir} nor ${projectNodeModulesDir} found. ` +
