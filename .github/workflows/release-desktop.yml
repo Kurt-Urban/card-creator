@@ -94,6 +94,33 @@ jobs:
       - name: Build installer
         run: pnpm run build:${{ matrix.target }}
 
+      - name: Verify packaged standalone server (Windows)
+        if: ${{ matrix.target == 'win' }}
+        shell: pwsh
+        run: |
+          $serverPath = "dist-electron/win-unpacked/resources/standalone/server.js"
+          if (-not (Test-Path $serverPath)) {
+            Write-Error "Missing packaged standalone server: $serverPath"
+            exit 1
+          }
+
+      - name: Verify packaged standalone server (macOS)
+        if: ${{ matrix.target == 'mac' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_bundle=$(ls -d dist-electron/*.app 2>/dev/null | head -n 1 || true)
+          if [ -z "$app_bundle" ]; then
+            echo "No .app bundle found in dist-electron"
+            exit 1
+          fi
+
+          server_path="$app_bundle/Contents/Resources/standalone/server.js"
+          if [ ! -f "$server_path" ]; then
+            echo "Missing packaged standalone server: $server_path"
+            exit 1
+          fi
+
       - name: Upload macOS release assets
         if: ${{ matrix.target == 'mac' }}
         uses: softprops/action-gh-release@v2
