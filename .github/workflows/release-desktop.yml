@@ -104,29 +104,21 @@ jobs:
             exit 1
           }
 
-          $nextPaths = @(
-            "dist-electron/win-unpacked/resources/standalone/node_modules/next/package.json",
-            "dist-electron/win-unpacked/resources/standalone-deps/next/package.json"
-          )
-          $nextPnpmPaths = @(
-            Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone/node_modules/.pnpm/*/node_modules/next/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1,
-            Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/*/node_modules/next/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
-          )
-          $hasNext = ($nextPaths | Where-Object { Test-Path $_ }).Count -gt 0 -or ($nextPnpmPaths | Where-Object { $_ }).Count -gt 0
+          $nextPath = "dist-electron/win-unpacked/resources/standalone/node_modules/next/package.json"
+          $nextAltPath = "dist-electron/win-unpacked/resources/standalone-deps/next/package.json"
+          $nextPnpmPath = Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone/node_modules/.pnpm/*/node_modules/next/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $nextAltPnpmPath = Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/*/node_modules/next/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $hasNext = (Test-Path $nextPath) -or (Test-Path $nextAltPath) -or ($null -ne $nextPnpmPath) -or ($null -ne $nextAltPnpmPath)
           if (-not $hasNext) {
             Write-Error "Missing packaged Next runtime in standalone/node_modules or standalone-deps (checked flat and .pnpm layouts)"
             exit 1
           }
 
-          $swcHelpersPaths = @(
-            "dist-electron/win-unpacked/resources/standalone/node_modules/.pnpm/node_modules/@swc/helpers/package.json",
-            "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/node_modules/@swc/helpers/package.json"
-          )
-          $swcHelpersPnpmPaths = @(
-            Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone/node_modules/.pnpm/*/node_modules/@swc/helpers/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1,
-            Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/*/node_modules/@swc/helpers/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
-          )
-          $hasSwcHelpers = ($swcHelpersPaths | Where-Object { Test-Path $_ }).Count -gt 0 -or ($swcHelpersPnpmPaths | Where-Object { $_ }).Count -gt 0
+          $swcHelpersPath = "dist-electron/win-unpacked/resources/standalone/node_modules/.pnpm/node_modules/@swc/helpers/package.json"
+          $swcHelpersAltPath = "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/node_modules/@swc/helpers/package.json"
+          $swcHelpersPnpmPath = Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone/node_modules/.pnpm/*/node_modules/@swc/helpers/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $swcHelpersAltPnpmPath = Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/*/node_modules/@swc/helpers/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $hasSwcHelpers = (Test-Path $swcHelpersPath) -or (Test-Path $swcHelpersAltPath) -or ($null -ne $swcHelpersPnpmPath) -or ($null -ne $swcHelpersAltPnpmPath)
           if (-not $hasSwcHelpers) {
             Write-Error "Missing packaged SWC helpers runtime in standalone/node_modules or standalone-deps (checked flat and .pnpm layouts)"
             exit 1
