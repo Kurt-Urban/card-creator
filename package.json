@@ -60,6 +60,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": ".next/standalone-packed/node_modules",
+        "to": "standalone-deps",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {

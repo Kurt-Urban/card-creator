@@ -1,16 +1,16 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { app, BrowserWindow, dialog } = require("electron");
-const { spawn } = require("node:child_process");
-const fs = require("node:fs");
-const net = require("node:net");
-const path = require("node:path");
+const { app, BrowserWindow, dialog } = require('electron');
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const net = require('node:net');
+const path = require('node:path');
 
 const DEFAULT_PORT = 3000;
-const HOST = "127.0.0.1";
+const HOST = '127.0.0.1';
 let mainWindow;
 let nextServerProcess;
 
-app.setName("Card Creator");
+app.setName('Card Creator');
 
 function waitForPort(port, host, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
@@ -22,7 +22,7 @@ function waitForPort(port, host, timeoutMs = 30000) {
         resolve();
       });
 
-      socket.on("error", () => {
+      socket.on('error', () => {
         socket.destroy();
 
         if (Date.now() - startedAt > timeoutMs) {
@@ -40,22 +40,22 @@ function waitForPort(port, host, timeoutMs = 30000) {
 
 function getStandaloneServerPath() {
   const candidates = [
-    path.join(process.resourcesPath, "standalone", "server.js"),
+    path.join(process.resourcesPath, 'standalone', 'server.js'),
     path.join(
       process.resourcesPath,
-      "app.asar.unpacked",
-      ".next",
-      "standalone",
-      "server.js",
+      'app.asar.unpacked',
+      '.next',
+      'standalone',
+      'server.js',
     ),
-    path.join(process.resourcesPath, ".next", "standalone", "server.js"),
-    path.join(app.getAppPath(), ".next", "standalone", "server.js"),
+    path.join(process.resourcesPath, '.next', 'standalone', 'server.js'),
+    path.join(app.getAppPath(), '.next', 'standalone', 'server.js'),
     path.join(
       process.resourcesPath,
-      "app.asar",
-      ".next",
-      "standalone",
-      "server.js",
+      'app.asar',
+      '.next',
+      'standalone',
+      'server.js',
     ),
   ];
 
@@ -68,7 +68,7 @@ function getStandaloneServerPath() {
 }
 
 function getServerWorkingDirectory(serverPath) {
-  const isAsarPath = serverPath.includes(".asar");
+  const isAsarPath = serverPath.includes('.asar');
   if (isAsarPath) {
     return process.resourcesPath;
   }
@@ -78,35 +78,43 @@ function getServerWorkingDirectory(serverPath) {
 
 function getStandaloneModulePaths(serverCwd) {
   const candidates = [
-    path.join(process.resourcesPath, "standalone-deps"),
+    path.join(serverCwd, 'node_modules'),
+    path.join(serverCwd, 'node_modules', '.pnpm', 'node_modules'),
+    path.join(process.resourcesPath, 'standalone', 'node_modules'),
     path.join(
       process.resourcesPath,
-      "standalone-deps",
-      ".pnpm",
-      "node_modules",
+      'standalone',
+      'node_modules',
+      '.pnpm',
+      'node_modules',
     ),
-    path.join(serverCwd, "node_modules"),
-    path.join(serverCwd, "node_modules", ".pnpm", "node_modules"),
-    path.join(serverCwd, "standalone-deps"),
-    path.join(serverCwd, "standalone-deps", ".pnpm", "node_modules"),
+    path.join(process.resourcesPath, 'standalone-deps'),
+    path.join(
+      process.resourcesPath,
+      'standalone-deps',
+      '.pnpm',
+      'node_modules',
+    ),
+    path.join(serverCwd, 'standalone-deps'),
+    path.join(serverCwd, 'standalone-deps', '.pnpm', 'node_modules'),
   ];
 
   const existing = candidates.filter((candidate, index) => {
     return candidates.indexOf(candidate) === index && fs.existsSync(candidate);
   });
 
-  return existing.length > 0 ? existing : candidates.slice(0, 2);
+  return existing.length > 0 ? existing : candidates.slice(0, 4);
 }
 
 function canListenOnPort(port, host) {
   return new Promise((resolve) => {
     const tester = net.createServer();
 
-    tester.once("error", () => {
+    tester.once('error', () => {
       resolve(false);
     });
 
-    tester.once("listening", () => {
+    tester.once('listening', () => {
       tester.close(() => {
         resolve(true);
       });
@@ -120,15 +128,15 @@ function reserveEphemeralPort(host) {
   return new Promise((resolve, reject) => {
     const tester = net.createServer();
 
-    tester.once("error", (error) => {
+    tester.once('error', (error) => {
       reject(error);
     });
 
     tester.listen(0, host, () => {
       const address = tester.address();
 
-      if (!address || typeof address !== "object") {
-        reject(new Error("Unable to determine ephemeral port"));
+      if (!address || typeof address !== 'object') {
+        reject(new Error('Unable to determine ephemeral port'));
         return;
       }
 
@@ -146,7 +154,7 @@ function reserveEphemeralPort(host) {
 }
 
 async function getAvailablePort(host) {
-  const requestedPort = Number.parseInt(process.env.PORT ?? "", 10);
+  const requestedPort = Number.parseInt(process.env.PORT ?? '', 10);
   const preferredPort = Number.isFinite(requestedPort)
     ? requestedPort
     : DEFAULT_PORT;
@@ -162,7 +170,7 @@ function startNextServer(port) {
   const serverPath = getStandaloneServerPath();
   const serverCwd = getServerWorkingDirectory(serverPath);
   const serverModulePaths = getStandaloneModulePaths(serverCwd);
-  const logFile = path.join(app.getPath("userData"), "server.log");
+  const logFile = path.join(app.getPath('userData'), 'server.log');
 
   const header =
     [
@@ -173,22 +181,22 @@ function startNextServer(port) {
       `  execPath   : ${process.execPath}`,
       `  port       : ${port}`,
       `  resources  : ${process.resourcesPath}`,
-    ].join("\n") + "\n";
+    ].join('\n') + '\n';
 
   if (!fs.existsSync(serverPath)) {
     const msg = `Standalone server not found at: ${serverPath}`;
-    fs.writeFileSync(logFile, header + msg + "\n", "utf8");
+    fs.writeFileSync(logFile, header + msg + '\n', 'utf8');
     throw new Error(msg);
   }
 
   if (!fs.existsSync(serverCwd)) {
     const msg = `Server working directory not found at: ${serverCwd}`;
-    fs.writeFileSync(logFile, header + msg + "\n", "utf8");
+    fs.writeFileSync(logFile, header + msg + '\n', 'utf8');
     throw new Error(msg);
   }
 
-  fs.writeFileSync(logFile, header, "utf8");
-  const logStream = fs.createWriteStream(logFile, { flags: "a" });
+  fs.writeFileSync(logFile, header, 'utf8');
+  const logStream = fs.createWriteStream(logFile, { flags: 'a' });
 
   nextServerProcess = spawn(process.execPath, [serverPath], {
     cwd: serverCwd,
@@ -196,34 +204,34 @@ function startNextServer(port) {
       ...process.env,
       HOSTNAME: HOST,
       PORT: String(port),
-      NODE_ENV: "production",
-      ELECTRON_RUN_AS_NODE: "1",
+      NODE_ENV: 'production',
+      ELECTRON_RUN_AS_NODE: '1',
       NODE_PATH: process.env.NODE_PATH
         ? `${serverModulePaths.join(path.delimiter)}${path.delimiter}${process.env.NODE_PATH}`
         : serverModulePaths.join(path.delimiter),
     },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
 
-  nextServerProcess.stdout.on("data", (chunk) =>
+  nextServerProcess.stdout.on('data', (chunk) =>
     logStream.write(`[stdout] ${chunk}`),
   );
-  nextServerProcess.stderr.on("data", (chunk) =>
+  nextServerProcess.stderr.on('data', (chunk) =>
     logStream.write(`[stderr] ${chunk}`),
   );
 
   const serverExited = new Promise((_, reject) => {
-    nextServerProcess.on("error", (error) => {
+    nextServerProcess.on('error', (error) => {
       logStream.write(`[error] ${error.message}\n`);
       reject(new Error(`Server process error: ${error.message}`));
     });
 
-    nextServerProcess.on("exit", (code) => {
-      logStream.write(`[exit] code=${code ?? "null"}\n`);
+    nextServerProcess.on('exit', (code) => {
+      logStream.write(`[exit] code=${code ?? 'null'}\n`);
       if (code !== 0) {
         reject(
           new Error(
-            `Server exited with code ${code ?? "unknown"}. Log: ${logFile}`,
+            `Server exited with code ${code ?? 'unknown'}. Log: ${logFile}`,
           ),
         );
       }
@@ -239,9 +247,9 @@ async function createWindow() {
     height: 960,
     minWidth: 1100,
     minHeight: 720,
-    backgroundColor: "#0f172a",
+    backgroundColor: '#0f172a',
     autoHideMenuBar: true,
-    title: "Card Creator",
+    title: 'Card Creator',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -250,11 +258,11 @@ async function createWindow() {
   });
 
   mainWindow.webContents.on(
-    "did-fail-load",
+    'did-fail-load',
     (_event, errorCode, errorDescription) => {
-      const logFile = path.join(app.getPath("userData"), "server.log");
+      const logFile = path.join(app.getPath('userData'), 'server.log');
       dialog.showErrorBox(
-        "Card Creator – Load Error",
+        'Card Creator – Load Error',
         `The app failed to load (${errorCode}: ${errorDescription}).\n\nSee log for details:\n${logFile}`,
       );
     },
@@ -262,7 +270,7 @@ async function createWindow() {
 
   if (process.env.ELECTRON_DEV_SERVER_URL) {
     await mainWindow.loadURL(process.env.ELECTRON_DEV_SERVER_URL);
-    mainWindow.webContents.openDevTools({ mode: "detach" });
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
     return;
   }
 
@@ -282,14 +290,14 @@ function cleanupServer() {
   nextServerProcess = null;
 }
 
-app.on("window-all-closed", () => {
+app.on('window-all-closed', () => {
   cleanupServer();
-  if (process.platform !== "darwin") {
+  if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
-app.on("before-quit", () => {
+app.on('before-quit', () => {
   cleanupServer();
 });
 
@@ -298,13 +306,13 @@ app
   .then(createWindow)
   .catch((error) => {
     dialog.showErrorBox(
-      "Card Creator – Startup Error",
+      'Card Creator – Startup Error',
       String(error.message ?? error),
     );
     app.quit();
   });
 
-app.on("activate", () => {
+app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow().catch((error) => {
       console.error(error);
