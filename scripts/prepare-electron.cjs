@@ -47,6 +47,37 @@ function copyDirDereferenced(sourceDir, targetDir) {
   });
 }
 
+function hasPackagedDependency(packageName, nodeModulesDir) {
+  const flatPackagePath = path.join(
+    nodeModulesDir,
+    packageName,
+    'package.json',
+  );
+  if (fs.existsSync(flatPackagePath)) {
+    return true;
+  }
+
+  const pnpmDir = path.join(nodeModulesDir, '.pnpm');
+  if (!fs.existsSync(pnpmDir)) {
+    return false;
+  }
+
+  for (const entry of fs.readdirSync(pnpmDir)) {
+    const packagePath = path.join(
+      pnpmDir,
+      entry,
+      'node_modules',
+      packageName,
+      'package.json',
+    );
+    if (fs.existsSync(packagePath)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function main() {
   ensureExists(standaloneRoot);
   ensureExists(sourceStaticDir);
@@ -61,10 +92,9 @@ function main() {
   // Ensure traced runtime dependencies are bundled beside server.js.
   // Next standalone expects module resolution to work relative to this folder.
   const packedNodeModulesDir = path.join(packedStandaloneRoot, 'node_modules');
-  const nextPkgPath = path.join(packedNodeModulesDir, 'next', 'package.json');
-  if (!fs.existsSync(nextPkgPath)) {
+  if (!hasPackagedDependency('next', packedNodeModulesDir)) {
     throw new Error(
-      `Invalid standalone output: next/package.json not found at ${nextPkgPath}`,
+      `Invalid standalone output: could not find packaged Next runtime in ${packedNodeModulesDir}`,
     );
   }
 
