@@ -29,6 +29,7 @@ import {
   PointerEvent as ReactPointerEvent,
   RefObject,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -72,6 +73,7 @@ const DB_EXPORT_DIRECTORY_KEY = "export-directory-handle";
 const CARD_JSON_FILE = "cards.json";
 const LIBRARY_PAGE_SIZE = 24;
 const SHEET_COLS = 10;
+const SHEET_MIN_ROWS = 2;
 
 type CardPreviewProps = {
   card: CardState;
@@ -305,6 +307,9 @@ function StaticCardPreview({
 }) {
   const cardBase = card.cardBackground || defaultCard.cardBackground;
   const panelBase = card.panelBackground || defaultCard.panelBackground;
+  const descriptionContainerRef = useRef<HTMLDivElement | null>(null);
+  const descriptionTextRef = useRef<HTMLParagraphElement | null>(null);
+  const [descriptionFontSize, setDescriptionFontSize] = useState(18);
   const descriptionVerticalAlign: Record<
     CardState["descriptionPosition"],
     string
@@ -313,6 +318,29 @@ function StaticCardPreview({
     center: "center",
     bottom: "flex-end",
   };
+
+  useLayoutEffect(() => {
+    const container = descriptionContainerRef.current;
+    const text = descriptionTextRef.current;
+
+    if (!container || !text) {
+      return;
+    }
+
+    let nextSize = 18;
+    text.style.fontSize = `${nextSize}px`;
+
+    while (
+      nextSize > 12 &&
+      container.scrollHeight > container.clientHeight + 1
+    ) {
+      nextSize -= 0.5;
+      text.style.fontSize = `${nextSize}px`;
+    }
+
+    setDescriptionFontSize(nextSize);
+  }, [card.description, card.descriptionAlign, card.descriptionPosition]);
+
   return (
     <article
       style={{
@@ -320,7 +348,6 @@ function StaticCardPreview({
         width: 320,
         height: 448,
         flexShrink: 0,
-        borderRadius: 28,
         border: "8px solid black",
         padding: 8,
         boxSizing: "border-box",
@@ -331,7 +358,6 @@ function StaticCardPreview({
     >
       <div
         style={{
-          position: "relative",
           display: "flex",
           height: "100%",
           flexDirection: "column",
@@ -462,20 +488,22 @@ function StaticCardPreview({
           }}
         >
           <div
+            ref={descriptionContainerRef}
             style={{
               display: "flex",
               height: "100%",
               flexDirection: "column",
-              overflowY: "auto",
+              overflow: "hidden",
               justifyContent:
                 descriptionVerticalAlign[card.descriptionPosition],
             }}
           >
             <p
+              ref={descriptionTextRef}
               style={{
                 width: "100%",
                 whiteSpace: "pre-wrap",
-                fontSize: 18,
+                fontSize: descriptionFontSize,
                 lineHeight: "1.625",
                 color: card.bodyTextColor,
                 textAlign: card.descriptionAlign,
@@ -1386,8 +1414,10 @@ export default function Home() {
     setIsExporting(true);
 
     try {
-      const totalSlots =
-        Math.ceil((libraryCards.length + 1) / SHEET_COLS) * SHEET_COLS;
+      const totalSlots = Math.max(
+        SHEET_MIN_ROWS * SHEET_COLS,
+        Math.ceil((libraryCards.length + 1) / SHEET_COLS) * SHEET_COLS,
+      );
       const emptyCount = totalSlots - libraryCards.length - 1;
       const slots: (CardRecord | null)[] = [
         ...libraryCards,
