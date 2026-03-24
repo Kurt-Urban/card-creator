@@ -105,14 +105,16 @@ jobs:
           }
 
           $nextPath = "dist-electron/win-unpacked/resources/standalone-deps/next/package.json"
-          if (-not (Test-Path $nextPath)) {
-            Write-Error "Missing packaged Next runtime: $nextPath"
+          $nextPnpmPath = Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/*/node_modules/next/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not (Test-Path $nextPath) -and -not $nextPnpmPath) {
+            Write-Error "Missing packaged Next runtime in standalone-deps (checked flat and .pnpm layouts)"
             exit 1
           }
 
           $swcHelpersPath = "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/node_modules/@swc/helpers/package.json"
-          if (-not (Test-Path $swcHelpersPath)) {
-            Write-Error "Missing packaged SWC helpers runtime: $swcHelpersPath"
+          $swcHelpersPnpmPath = Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/*/node_modules/@swc/helpers/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not (Test-Path $swcHelpersPath) -and -not $swcHelpersPnpmPath) {
+            Write-Error "Missing packaged SWC helpers runtime in standalone-deps (checked flat and .pnpm layouts)"
             exit 1
           }
 
@@ -134,14 +136,16 @@ jobs:
           fi
 
           next_path="$app_bundle/Contents/Resources/standalone-deps/next/package.json"
-          if [ ! -f "$next_path" ]; then
-            echo "Missing packaged Next runtime: $next_path"
+          next_pnpm_path=$(find "$app_bundle/Contents/Resources/standalone-deps/.pnpm" -path "*/node_modules/next/package.json" -type f 2>/dev/null | head -n 1 || true)
+          if [ ! -f "$next_path" ] && [ -z "$next_pnpm_path" ]; then
+            echo "Missing packaged Next runtime in standalone-deps (checked flat and .pnpm layouts)"
             exit 1
           fi
 
           swc_helpers_path="$app_bundle/Contents/Resources/standalone-deps/.pnpm/node_modules/@swc/helpers/package.json"
-          if [ ! -f "$swc_helpers_path" ]; then
-            echo "Missing packaged SWC helpers runtime: $swc_helpers_path"
+          swc_helpers_pnpm_path=$(find "$app_bundle/Contents/Resources/standalone-deps/.pnpm" -path "*/node_modules/@swc/helpers/package.json" -type f 2>/dev/null | head -n 1 || true)
+          if [ ! -f "$swc_helpers_path" ] && [ -z "$swc_helpers_pnpm_path" ]; then
+            echo "Missing packaged SWC helpers runtime in standalone-deps (checked flat and .pnpm layouts)"
             exit 1
           fi
 
