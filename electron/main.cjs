@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { app, BrowserWindow } = require("electron");
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
 
@@ -36,7 +37,40 @@ function waitForPort(port, host, timeoutMs = 30000) {
 }
 
 function getStandaloneServerPath() {
-  return path.join(app.getAppPath(), ".next", "standalone", "server.js");
+  const candidates = [
+    path.join(app.getAppPath(), ".next", "standalone", "server.js"),
+    path.join(
+      process.resourcesPath,
+      "app.asar.unpacked",
+      ".next",
+      "standalone",
+      "server.js",
+    ),
+    path.join(
+      process.resourcesPath,
+      "app.asar",
+      ".next",
+      "standalone",
+      "server.js",
+    ),
+    path.join(process.resourcesPath, ".next", "standalone", "server.js"),
+  ];
+
+  const matched = candidates.find((candidate) => fs.existsSync(candidate));
+  if (matched) {
+    return matched;
+  }
+
+  return candidates[0];
+}
+
+function getServerWorkingDirectory(serverPath) {
+  const isAsarPath = serverPath.includes(".asar");
+  if (isAsarPath) {
+    return process.resourcesPath;
+  }
+
+  return path.dirname(serverPath);
 }
 
 function canListenOnPort(port, host) {
@@ -101,9 +135,18 @@ async function getAvailablePort(host) {
 
 function startNextServer(port) {
   const serverPath = getStandaloneServerPath();
+  const serverCwd = getServerWorkingDirectory(serverPath);
+
+  if (!fs.existsSync(serverPath)) {
+    throw new Error(`Standalone server not found at ${serverPath}`);
+  }
+
+  if (!fs.existsSync(serverCwd)) {
+    throw new Error(`Server working directory not found at ${serverCwd}`);
+  }
 
   nextServerProcess = spawn(process.execPath, [serverPath], {
-    cwd: path.dirname(serverPath),
+    cwd: serverCwd,
     env: {
       ...process.env,
       HOSTNAME: HOST,
@@ -112,6 +155,10 @@ function startNextServer(port) {
       ELECTRON_RUN_AS_NODE: "1",
     },
     stdio: "inherit",
+  });
+
+  nextServerProcess.on("error", (error) => {
+    console.error("Failed to start Next standalone server:", error);
   });
 
   nextServerProcess.on("exit", (code) => {
