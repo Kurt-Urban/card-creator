@@ -45,6 +45,8 @@
     "appId": "com.enchunted.cardcreator",
     "productName": "Card Creator",
     "artifactName": "Card Creator.${ext}",
+    "disableDefaultIgnoredFiles": true,
+    "npmRebuild": false,
     "files": [
       "electron/**/*",
       "package.json"
@@ -53,6 +55,13 @@
       {
         "from": ".next/standalone-packed",
         "to": "standalone",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": ".next/standalone-deps",
+        "to": "standalone-deps",
         "filter": [
           "**/*"
         ]

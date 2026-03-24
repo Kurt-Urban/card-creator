@@ -76,6 +76,17 @@ function getServerWorkingDirectory(serverPath) {
   return path.dirname(serverPath);
 }
 
+function getStandaloneModulesPath(serverCwd) {
+  const candidates = [
+    path.join(process.resourcesPath, "standalone-deps"),
+    path.join(serverCwd, "node_modules"),
+    path.join(serverCwd, "standalone-deps"),
+  ];
+
+  const matched = candidates.find((candidate) => fs.existsSync(candidate));
+  return matched ?? candidates[0];
+}
+
 function canListenOnPort(port, host) {
   return new Promise((resolve) => {
     const tester = net.createServer();
@@ -139,6 +150,7 @@ async function getAvailablePort(host) {
 function startNextServer(port) {
   const serverPath = getStandaloneServerPath();
   const serverCwd = getServerWorkingDirectory(serverPath);
+  const serverModulesPath = getStandaloneModulesPath(serverCwd);
   const logFile = path.join(app.getPath("userData"), "server.log");
 
   const header =
@@ -146,6 +158,7 @@ function startNextServer(port) {
       `[${new Date().toISOString()}] Starting Card Creator server`,
       `  serverPath : ${serverPath}`,
       `  serverCwd  : ${serverCwd}`,
+      `  modulePath : ${serverModulesPath}`,
       `  execPath   : ${process.execPath}`,
       `  port       : ${port}`,
       `  resources  : ${process.resourcesPath}`,
@@ -174,6 +187,9 @@ function startNextServer(port) {
       PORT: String(port),
       NODE_ENV: "production",
       ELECTRON_RUN_AS_NODE: "1",
+      NODE_PATH: process.env.NODE_PATH
+        ? `${serverModulesPath}${path.delimiter}${process.env.NODE_PATH}`
+        : serverModulesPath,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

@@ -5,6 +5,7 @@ const path = require("node:path");
 const root = process.cwd();
 const standaloneRoot = path.join(root, ".next", "standalone");
 const packedStandaloneRoot = path.join(root, ".next", "standalone-packed");
+const packedStandaloneDepsRoot = path.join(root, ".next", "standalone-deps");
 const standaloneNextDir = path.join(standaloneRoot, ".next");
 
 const sourceStaticDir = path.join(root, ".next", "static");
@@ -24,39 +25,27 @@ function copyDir(sourceDir, targetDir) {
   fs.cpSync(sourceDir, targetDir, { recursive: true, force: true });
 }
 
-function copyDereferencedEntry(sourcePath, targetPath) {
-  const stats = fs.lstatSync(sourcePath);
-
-  if (stats.isSymbolicLink()) {
-    let realPath;
-    try {
-      realPath = fs.realpathSync(sourcePath);
-    } catch {
-      return;
-    }
-
-    copyDereferencedEntry(realPath, targetPath);
-    return;
-  }
-
-  if (stats.isDirectory()) {
-    fs.mkdirSync(targetPath, { recursive: true });
-    for (const entry of fs.readdirSync(sourcePath)) {
-      copyDereferencedEntry(
-        path.join(sourcePath, entry),
-        path.join(targetPath, entry),
-      );
-    }
-    return;
-  }
-
-  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  fs.copyFileSync(sourcePath, targetPath);
-}
-
 function copyDirDereferenced(sourceDir, targetDir) {
   fs.rmSync(targetDir, { recursive: true, force: true });
-  copyDereferencedEntry(sourceDir, targetDir);
+  // dereference:true follows symlinks AND Windows NTFS junctions when copying,
+  // producing real files with no pointers into the pnpm virtual store.
+  fs.cpSync(sourceDir, targetDir, {
+    recursive: true,
+    dereference: true,
+    force: true,
+    errorOnExist: false,
+    filter: (src) => {
+      // Skip dangling symlinks (can appear in pnpm stores) to avoid ENOENT.
+      const stat = fs.lstatSync(src);
+      if (!stat.isSymbolicLink()) return true;
+      try {
+        fs.realpathSync(src);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  });
 }
 
 function main() {
@@ -68,10 +57,17 @@ function main() {
   copyDir(sourcePublicDir, targetPublicDir);
   copyDirDereferenced(standaloneRoot, packedStandaloneRoot);
 
+  const packedNodeModulesDir = path.join(packedStandaloneRoot, "node_modules");
+  fs.rmSync(packedStandaloneDepsRoot, { recursive: true, force: true });
+  if (fs.existsSync(packedNodeModulesDir)) {
+    fs.renameSync(packedNodeModulesDir, packedStandaloneDepsRoot);
+  }
+
   console.log("Prepared Electron standalone assets:");
   console.log(`- ${targetStaticDir}`);
   console.log(`- ${targetPublicDir}`);
   console.log(`- ${packedStandaloneRoot} (dereferenced for packaging)`);
+  console.log(`- ${packedStandaloneDepsRoot} (packaged server dependencies)`);
 }
 
 main();

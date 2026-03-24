@@ -104,6 +104,12 @@ jobs:
             exit 1
           }
 
+          $nextPath = "dist-electron/win-unpacked/resources/standalone-deps/next/package.json"
+          if (-not (Test-Path $nextPath)) {
+            Write-Error "Missing packaged Next runtime: $nextPath"
+            exit 1
+          }
+
       - name: Verify packaged standalone server (macOS)
         if: ${{ matrix.target == 'mac' }}
         shell: bash
@@ -118,6 +124,12 @@ jobs:
           server_path="$app_bundle/Contents/Resources/standalone/server.js"
           if [ ! -f "$server_path" ]; then
             echo "Missing packaged standalone server: $server_path"
+            exit 1
+          fi
+
+          next_path="$app_bundle/Contents/Resources/standalone-deps/next/package.json"
+          if [ ! -f "$next_path" ]; then
+            echo "Missing packaged Next runtime: $next_path"
             exit 1
           fi
 
