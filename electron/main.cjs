@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, dialog } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const net = require("node:net");
@@ -139,14 +139,32 @@ async function getAvailablePort(host) {
 function startNextServer(port) {
   const serverPath = getStandaloneServerPath();
   const serverCwd = getServerWorkingDirectory(serverPath);
+  const logFile = path.join(app.getPath("userData"), "server.log");
+
+  const header =
+    [
+      `[${new Date().toISOString()}] Starting Card Creator server`,
+      `  serverPath : ${serverPath}`,
+      `  serverCwd  : ${serverCwd}`,
+      `  execPath   : ${process.execPath}`,
+      `  port       : ${port}`,
+      `  resources  : ${process.resourcesPath}`,
+    ].join("\n") + "\n";
 
   if (!fs.existsSync(serverPath)) {
-    throw new Error(`Standalone server not found at ${serverPath}`);
+    const msg = `Standalone server not found at: ${serverPath}`;
+    fs.writeFileSync(logFile, header + msg + "\n", "utf8");
+    throw new Error(msg);
   }
 
   if (!fs.existsSync(serverCwd)) {
-    throw new Error(`Server working directory not found at ${serverCwd}`);
+    const msg = `Server working directory not found at: ${serverCwd}`;
+    fs.writeFileSync(logFile, header + msg + "\n", "utf8");
+    throw new Error(msg);
   }
+
+  fs.writeFileSync(logFile, header, "utf8");
+  const logStream = fs.createWriteStream(logFile, { flags: "a" });
 
   nextServerProcess = spawn(process.execPath, [serverPath], {
     cwd: serverCwd,
@@ -157,20 +175,35 @@ function startNextServer(port) {
       NODE_ENV: "production",
       ELECTRON_RUN_AS_NODE: "1",
     },
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
   });
 
-  nextServerProcess.on("error", (error) => {
-    console.error("Failed to start Next standalone server:", error);
+  nextServerProcess.stdout.on("data", (chunk) =>
+    logStream.write(`[stdout] ${chunk}`),
+  );
+  nextServerProcess.stderr.on("data", (chunk) =>
+    logStream.write(`[stderr] ${chunk}`),
+  );
+
+  const serverExited = new Promise((_, reject) => {
+    nextServerProcess.on("error", (error) => {
+      logStream.write(`[error] ${error.message}\n`);
+      reject(new Error(`Server process error: ${error.message}`));
+    });
+
+    nextServerProcess.on("exit", (code) => {
+      logStream.write(`[exit] code=${code ?? "null"}\n`);
+      if (code !== 0) {
+        reject(
+          new Error(
+            `Server exited with code ${code ?? "unknown"}. Log: ${logFile}`,
+          ),
+        );
+      }
+    });
   });
 
-  nextServerProcess.on("exit", (code) => {
-    if (code !== 0) {
-      console.error(
-        `Next standalone server exited with code ${code ?? "unknown"}`,
-      );
-    }
-  });
+  return serverExited;
 }
 
 async function createWindow() {
@@ -189,6 +222,17 @@ async function createWindow() {
     },
   });
 
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription) => {
+      const logFile = path.join(app.getPath("userData"), "server.log");
+      dialog.showErrorBox(
+        "Card Creator – Load Error",
+        `The app failed to load (${errorCode}: ${errorDescription}).\n\nSee log for details:\n${logFile}`,
+      );
+    },
+  );
+
   if (process.env.ELECTRON_DEV_SERVER_URL) {
     await mainWindow.loadURL(process.env.ELECTRON_DEV_SERVER_URL);
     mainWindow.webContents.openDevTools({ mode: "detach" });
@@ -196,9 +240,9 @@ async function createWindow() {
   }
 
   const port = await getAvailablePort(HOST);
+  const serverExited = startNextServer(port);
 
-  startNextServer(port);
-  await waitForPort(port, HOST);
+  await Promise.race([waitForPort(port, HOST), serverExited]);
   await mainWindow.loadURL(`http://${HOST}:${port}`);
 }
 
@@ -222,7 +266,16 @@ app.on("before-quit", () => {
   cleanupServer();
 });
 
-app.whenReady().then(createWindow);
+app
+  .whenReady()
+  .then(createWindow)
+  .catch((error) => {
+    dialog.showErrorBox(
+      "Card Creator – Startup Error",
+      String(error.message ?? error),
+    );
+    app.quit();
+  });
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {

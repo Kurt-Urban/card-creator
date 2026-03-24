@@ -109,7 +109,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          app_bundle=$(ls -d dist-electron/*.app 2>/dev/null | head -n 1 || true)
+          app_bundle=$(find dist-electron -maxdepth 2 -name "*.app" -type d | head -n 1)
           if [ -z "$app_bundle" ]; then
             echo "No .app bundle found in dist-electron"
             exit 1
