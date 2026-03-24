@@ -94,14 +94,21 @@ jobs:
       - name: Build installer
         run: pnpm run build:${{ matrix.target }}
 
-      - name: Upload release assets
+      - name: Upload macOS release assets
+        if: ${{ matrix.target == 'mac' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.resolve-tag.outputs.release_tag }}
-          files: |
-            dist-electron/*.dmg
-            dist-electron/*Setup*.exe
-          fail_on_unmatched_files: false
+          files: dist-electron/*.dmg
+          fail_on_unmatched_files: true
+
+      - name: Upload Windows release assets
+        if: ${{ matrix.target == 'win' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve-tag.outputs.release_tag }}
+          files: dist-electron/Card Creator.exe
+          fail_on_unmatched_files: true
 
   update-readme-links:
     name: Update README Download Links
