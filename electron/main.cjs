@@ -10,6 +10,8 @@ const HOST = "127.0.0.1";
 let mainWindow;
 let nextServerProcess;
 
+app.setName("Card Creator");
+
 function waitForPort(port, host, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
@@ -38,7 +40,6 @@ function waitForPort(port, host, timeoutMs = 30000) {
 
 function getStandaloneServerPath() {
   const candidates = [
-    path.join(app.getAppPath(), ".next", "standalone", "server.js"),
     path.join(
       process.resourcesPath,
       "app.asar.unpacked",
@@ -46,6 +47,8 @@ function getStandaloneServerPath() {
       "standalone",
       "server.js",
     ),
+    path.join(process.resourcesPath, ".next", "standalone", "server.js"),
+    path.join(app.getAppPath(), ".next", "standalone", "server.js"),
     path.join(
       process.resourcesPath,
       "app.asar",
@@ -53,7 +56,6 @@ function getStandaloneServerPath() {
       "standalone",
       "server.js",
     ),
-    path.join(process.resourcesPath, ".next", "standalone", "server.js"),
   ];
 
   const matched = candidates.find((candidate) => fs.existsSync(candidate));
@@ -178,7 +180,7 @@ async function createWindow() {
     minHeight: 720,
     backgroundColor: "#0f172a",
     autoHideMenuBar: true,
-    title: "Enchunted Card Creator",
+    title: "Card Creator",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

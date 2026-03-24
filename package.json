@@ -43,7 +43,11 @@
   },
   "build": {
     "appId": "com.enchunted.cardcreator",
-    "productName": "Enchunted Card Creator",
+    "productName": "Card Creator",
+    "artifactName": "Card Creator.${ext}",
+    "asarUnpack": [
+      ".next/standalone/**"
+    ],
     "files": [
       "electron/**/*",
       ".next/standalone/**/*",
