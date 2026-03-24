@@ -6,12 +6,16 @@ import {
   CardRecord,
   CardState,
   cardThemes,
+  compactCardRecord,
   defaultLibrarySettings,
   defaultCard,
   emptyLibraryFile,
+  expandStoredCardRecord,
+  findThemeIdForCard,
   ensureCardState,
   getThemeById,
   sortByNewest,
+  StoredCardLibraryFile,
   ThemeColorField,
 } from "./card-builder";
 import { IconManagerSection } from "./components/IconManagerSection";
@@ -395,7 +399,7 @@ async function readLibraryFile(
   }
 
   try {
-    const parsed = JSON.parse(raw) as Partial<CardLibraryFile>;
+    const parsed = JSON.parse(raw) as Partial<StoredCardLibraryFile>;
     if (!Array.isArray(parsed.cards)) {
       return emptyLibraryFile;
     }
@@ -421,6 +425,16 @@ async function readLibraryFile(
       new Set([...normalizedIconSuggestions, defaultIcon]),
     );
 
+    const cards = parsed.cards.reduce<CardRecord[]>((acc, entry) => {
+      const expanded = expandStoredCardRecord(entry);
+      if (!expanded) {
+        return acc;
+      }
+
+      acc.push(expanded);
+      return acc;
+    }, []);
+
     return {
       version: typeof parsed.version === "number" ? parsed.version : 1,
       settings: {
@@ -430,33 +444,7 @@ async function readLibraryFile(
             : defaultLibrarySettings.iconSuggestions,
         defaultIcon,
       },
-      cards: parsed.cards.reduce<CardRecord[]>((acc, entry) => {
-        if (typeof entry !== "object" || entry === null) {
-          return acc;
-        }
-
-        const candidate = entry as Partial<CardRecord>;
-        const normalizedCard = ensureCardState(candidate.card);
-
-        if (
-          typeof candidate.id !== "string" ||
-          typeof candidate.name !== "string" ||
-          typeof candidate.updatedAt !== "string" ||
-          !normalizedCard
-        ) {
-          return acc;
-        }
-
-        acc.push({
-          id: candidate.id,
-          name: candidate.name,
-          updatedAt: candidate.updatedAt,
-          artImage:
-            typeof candidate.artImage === "string" ? candidate.artImage : null,
-          card: normalizedCard,
-        });
-        return acc;
-      }, []),
+      cards,
     };
   } catch {
     return emptyLibraryFile;
@@ -465,14 +453,22 @@ async function readLibraryFile(
 
 async function writeLibraryFile(
   directoryHandle: DirectoryHandleLike,
-  payload: CardLibraryFile,
+  payload: {
+    version: number;
+    settings: CardLibrarySettings;
+    cards: CardRecord[];
+  },
 ) {
   const handle = await directoryHandle.getFileHandle(CARD_JSON_FILE, {
     create: true,
   });
 
   const writable = await handle.createWritable();
-  await writable.write(JSON.stringify(payload, null, 2));
+  const compactPayload: StoredCardLibraryFile = {
+    ...payload,
+    cards: payload.cards.map((entry) => compactCardRecord(entry)),
+  };
+  await writable.write(JSON.stringify(compactPayload, null, 2));
   await writable.close();
 }
 
@@ -981,7 +977,7 @@ export default function Home() {
 
     setCard(normalizedCard);
     setArtImage(record.artImage);
-    setSelectedThemeId("");
+    setSelectedThemeId(findThemeIdForCard(normalizedCard) ?? "");
     setActiveView("builder");
     setStorageMessage(loadMessage);
   };

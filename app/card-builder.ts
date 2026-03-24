@@ -36,10 +36,25 @@ export type CardRecord = {
   updatedAt: string;
 };
 
+export type StoredCardRecord = {
+  id: string;
+  name: string;
+  updatedAt: string;
+  artImage?: string | null;
+  themeId?: string;
+  card?: Partial<CardState>;
+};
+
 export type CardLibraryFile = {
   version: number;
   settings: CardLibrarySettings;
   cards: CardRecord[];
+};
+
+export type StoredCardLibraryFile = {
+  version: number;
+  settings: CardLibrarySettings;
+  cards: StoredCardRecord[];
 };
 
 export type CardLibrarySettings = {
@@ -53,9 +68,9 @@ export const defaultCard: CardState = {
   description: "Description",
   descriptionAlign: "center",
   descriptionPosition: "center",
-  footerLeft: "0",
-  footerCenter: "0",
-  footerRight: "0",
+  footerLeft: "",
+  footerCenter: "",
+  footerRight: "",
   cardBackground: "#0b1020",
   artBackground: "#11356f",
   panelBackground: "#1f3d8d",
@@ -140,6 +155,15 @@ export type ThemeColorField =
   | "titleColor"
   | "bodyTextColor";
 
+export const themeColorFields: ThemeColorField[] = [
+  "cardBackground",
+  "artBackground",
+  "panelBackground",
+  "frameAccent",
+  "titleColor",
+  "bodyTextColor",
+];
+
 export function sortByNewest(cards: CardRecord[]): CardRecord[] {
   return [...cards].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
@@ -160,4 +184,103 @@ export function ensureCardState(value: unknown): CardState | null {
 
 export function getThemeById(themeId: string): CardTheme | undefined {
   return cardThemes.find((theme) => theme.id === themeId);
+}
+
+export function findThemeIdForCard(card: CardState): string | undefined {
+  return cardThemes.find((theme) =>
+    themeColorFields.every((field) => card[field] === theme[field]),
+  )?.id;
+}
+
+export function compactCardRecord(record: CardRecord): StoredCardRecord {
+  const themeId = findThemeIdForCard(record.card);
+  const compactCard: Partial<CardState> = {};
+
+  for (const key of Object.keys(defaultCard) as Array<keyof CardState>) {
+    if (key === "artOffsetX" || key === "artOffsetY") {
+      continue;
+    }
+
+    if (themeId && themeColorFields.includes(key as ThemeColorField)) {
+      continue;
+    }
+
+    if (record.card[key] !== defaultCard[key]) {
+      (compactCard as Partial<Record<keyof CardState, unknown>>)[key] =
+        record.card[key];
+    }
+  }
+
+  if (record.artImage) {
+    if (record.card.artOffsetX !== defaultCard.artOffsetX) {
+      compactCard.artOffsetX = record.card.artOffsetX;
+    }
+
+    if (record.card.artOffsetY !== defaultCard.artOffsetY) {
+      compactCard.artOffsetY = record.card.artOffsetY;
+    }
+  }
+
+  return {
+    id: record.id,
+    name: record.name,
+    updatedAt: record.updatedAt,
+    ...(record.artImage ? { artImage: record.artImage } : {}),
+    ...(themeId ? { themeId } : {}),
+    ...(Object.keys(compactCard).length > 0 ? { card: compactCard } : {}),
+  };
+}
+
+export function expandStoredCardRecord(value: unknown): CardRecord | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const candidate = value as Partial<StoredCardRecord>;
+  if (
+    typeof candidate.id !== "string" ||
+    typeof candidate.name !== "string" ||
+    typeof candidate.updatedAt !== "string"
+  ) {
+    return null;
+  }
+
+  const cardInput =
+    typeof candidate.card === "object" && candidate.card !== null
+      ? (candidate.card as Partial<CardState>)
+      : {};
+  const theme =
+    typeof candidate.themeId === "string"
+      ? getThemeById(candidate.themeId)
+      : undefined;
+
+  const nextCard: CardState = {
+    ...defaultCard,
+    ...(theme
+      ? {
+          cardBackground: theme.cardBackground,
+          artBackground: theme.artBackground,
+          panelBackground: theme.panelBackground,
+          frameAccent: theme.frameAccent,
+          titleColor: theme.titleColor,
+          bodyTextColor: theme.bodyTextColor,
+        }
+      : {}),
+    ...cardInput,
+  };
+
+  const artImage =
+    typeof candidate.artImage === "string" ? candidate.artImage : null;
+  if (!artImage) {
+    nextCard.artOffsetX = defaultCard.artOffsetX;
+    nextCard.artOffsetY = defaultCard.artOffsetY;
+  }
+
+  return {
+    id: candidate.id,
+    name: candidate.name,
+    updatedAt: candidate.updatedAt,
+    artImage,
+    card: nextCard,
+  };
 }
