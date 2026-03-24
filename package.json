@@ -45,15 +45,18 @@
     "appId": "com.enchunted.cardcreator",
     "productName": "Card Creator",
     "artifactName": "Card Creator.${ext}",
-    "asarUnpack": [
-      ".next/standalone/**"
-    ],
     "files": [
       "electron/**/*",
-      ".next/standalone/**/*",
-      ".next/static/**/*",
-      "public/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "standalone",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "mac": {
       "target": [

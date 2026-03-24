@@ -40,6 +40,7 @@ function waitForPort(port, host, timeoutMs = 30000) {
 
 function getStandaloneServerPath() {
   const candidates = [
+    path.join(process.resourcesPath, "standalone", "server.js"),
     path.join(
       process.resourcesPath,
       "app.asar.unpacked",
