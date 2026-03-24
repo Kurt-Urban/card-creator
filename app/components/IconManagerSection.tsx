@@ -27,6 +27,36 @@ export function IconManagerSection({
 }: IconManagerSectionProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [copiedIcon, setCopiedIcon] = useState<string | null>(null);
+
+  const copyIcon = async (value: string) => {
+    if (!value) {
+      return;
+    }
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else if (typeof document !== "undefined") {
+        const helper = document.createElement("textarea");
+        helper.value = value;
+        helper.setAttribute("readonly", "");
+        helper.style.position = "absolute";
+        helper.style.left = "-9999px";
+        document.body.appendChild(helper);
+        helper.select();
+        document.execCommand("copy");
+        document.body.removeChild(helper);
+      }
+
+      setCopiedIcon(value);
+      window.setTimeout(() => {
+        setCopiedIcon((current) => (current === value ? null : current));
+      }, 1200);
+    } catch {
+      setCopiedIcon(null);
+    }
+  };
 
   return (
     <div className="min-w-[220px]">
@@ -37,6 +67,7 @@ export function IconManagerSection({
           const isDropTarget = dropIndex === index;
           const isDefault = defaultIcon === value;
           const isSelected = icon === value;
+          const isCopied = copiedIcon === value;
 
           return (
             <div
@@ -88,6 +119,17 @@ export function IconManagerSection({
                 className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-rose-500/70 bg-slate-900 text-[10px] text-rose-300 opacity-0 transition group-hover:opacity-100"
               >
                 🗑
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void copyIcon(value);
+                }}
+                title={isCopied ? "Copied" : `Copy ${value} to clipboard`}
+                className="absolute -left-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-cyan-500/70 bg-slate-900 text-[10px] text-cyan-200 opacity-0 transition group-hover:opacity-100"
+              >
+                {isCopied ? "✓" : "⧉"}
               </button>
 
               {isDefault && (
