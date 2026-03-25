@@ -23,7 +23,6 @@ import { LibrarySection } from "./components/LibrarySection";
 import { TextAndStatsSection } from "./components/TextAndStatsSection";
 import { ThemeAppearanceSection } from "./components/ThemeAppearanceSection";
 import { toPng } from "html-to-image";
-import Image from "next/image";
 import {
   ChangeEvent,
   PointerEvent as ReactPointerEvent,
@@ -227,21 +226,22 @@ function CardPreview({ card, artImage, onArtOffsetChange }: CardPreviewProps) {
           }}
         >
           {artImage ? (
-            <Image
+            <img
               src={artImage}
               alt="Card art"
-              fill
-              sizes="390px"
               className={
                 isDraggingArt
                   ? "pointer-events-none select-none object-cover"
                   : "select-none object-cover"
               }
               style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
                 objectPosition: `${card.artOffsetX}% ${card.artOffsetY}%`,
               }}
               draggable={false}
-              unoptimized
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
@@ -407,7 +407,6 @@ function StaticCardPreview({
           }}
         >
           {artImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={artImage}
               alt="Card art"

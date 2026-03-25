@@ -5,26 +5,28 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -k \"pnpm dev:web\" \"pnpm dev:electron\"",
-    "dev:web": "next dev",
-    "dev:electron": "wait-on tcp:3000 && cross-env ELECTRON_DEV_SERVER_URL=http://127.0.0.1:3000 electron .",
-    "build": "next build",
-    "build:electron:prep": "pnpm build && node scripts/prepare-electron.cjs",
-    "build:app": "pnpm run build:electron:prep && electron-builder --publish never",
-    "build:mac": "pnpm run build:electron:prep && electron-builder --mac --publish never",
-    "build:win": "pnpm run build:electron:prep && electron-builder --win --publish never",
-    "mac:local": "pnpm run build:electron:prep && pnpm run start:electron",
+    "dev:web": "vite --host 127.0.0.1 --port 5173",
+    "dev:electron": "wait-on tcp:5173 && cross-env ELECTRON_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "build": "vite build",
+    "build:app": "pnpm run build && electron-builder --dir --publish never",
+    "build:mac": "pnpm run build && electron-builder --mac --publish never",
+    "build:win": "pnpm run build && electron-builder --win --publish never",
+    "mac:local": "pnpm run build && pnpm run start:electron",
+    "win:local": "pnpm run build && pnpm run start:electron",
     "verify:mac": "pnpm lint && pnpm run build:mac",
-    "start": "next start",
+    "verify:win": "pnpm lint && pnpm run build:win",
+    "start": "vite preview --host 127.0.0.1 --port 4173",
     "start:electron": "electron .",
     "lint": "eslint"
   },
   "dependencies": {
     "html-to-image": "^1.11.13",
-    "next": "16.2.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@vitejs/plugin-react": "^5.0.4",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^20.19.37",
     "@types/react": "^19.2.14",
@@ -35,10 +37,14 @@
     "electron": "^41.0.3",
     "electron-builder": "^26.8.1",
     "eslint": "^9.39.4",
-    "eslint-config-next": "16.2.1",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.4.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
+    "typescript-eslint": "^8.46.1",
     "typescript": "^5.9.3",
+    "vite": "^7.1.7",
     "wait-on": "^9.0.4"
   },
   "build": {
@@ -49,23 +55,8 @@
     "npmRebuild": false,
     "files": [
       "electron/**/*",
+      "dist/**/*",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": ".next/standalone-packed",
-        "to": "standalone",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": ".next/standalone-deps",
-        "to": "standalone-deps",
-        "filter": [
-          "**/*"
-        ]
-      }
     ],
     "mac": {
       "target": [

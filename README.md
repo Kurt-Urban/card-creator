@@ -1,6 +1,6 @@
 # Enchunted Card Creator
 
-Cross-platform desktop card builder built with Next.js and Electron.
+Cross-platform desktop card builder built with Vite, React, Tailwind CSS, and Electron.
 
 ## Prerequisites
 
@@ -21,28 +21,27 @@ pnpm approve-builds
 
 ## Run In Development (Electron Window)
 
-This runs Next.js and Electron together:
+This runs the Vite dev server and Electron together:
 
 ```bash
 pnpm dev
 ```
 
-## Build Next.js Web App
+## Build Web App
 
 ```bash
 pnpm build
 ```
 
-## Build Desktop Installers
+## Build Desktop App
 
-Electron packaging automatically runs a prep step that copies Next static/public
-assets into the standalone output used by Electron.
-
-Build both targets from your current OS settings:
+Build an unpacked desktop app for your current OS:
 
 ```bash
 pnpm build:app
 ```
+
+## Build Desktop Installers
 
 Build macOS installer only:
 
@@ -62,7 +61,8 @@ Output files are written to `dist-electron/`.
 
 - macOS builds generally need to be run on macOS.
 - Windows builds generally need to be run on Windows.
-- This project uses Next.js standalone output for Electron production runtime.
+- `build:app` creates an unpacked app directory for local validation.
+- `build:win` and `build:mac` create installer artifacts.
 - Every push to `master` auto-creates a patch tag (`vX.Y.Z`) via GitHub Actions.
 - Use the `Auto Tag Releases` workflow (Run workflow) with `bump = major` when you want a new major version.
 
