@@ -1,6 +1,6 @@
 {
   "name": "enchunted",
-  "version": "0.1.0",
+  "version": "0.1.12",
   "main": "electron/main.cjs",
   "private": true,
   "scripts": {
