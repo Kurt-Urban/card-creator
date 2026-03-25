@@ -94,37 +94,29 @@ jobs:
       - name: Build installer
         run: pnpm run build:${{ matrix.target }}
 
-      - name: Verify packaged standalone server (Windows)
+      - name: Verify packaged app bundle (Windows)
         if: ${{ matrix.target == 'win' }}
         shell: pwsh
         run: |
-          $serverPath = "dist-electron/win-unpacked/resources/standalone/server.js"
-          if (-not (Test-Path $serverPath)) {
-            Write-Error "Missing packaged standalone server: $serverPath"
+          $appExecutable = "dist-electron/win-unpacked/Card Creator.exe"
+          if (-not (Test-Path $appExecutable)) {
+            Write-Error "Missing packaged Windows app executable: $appExecutable"
             exit 1
           }
 
-          $nextPath = "dist-electron/win-unpacked/resources/standalone/node_modules/next/package.json"
-          $nextAltPath = "dist-electron/win-unpacked/resources/standalone-deps/next/package.json"
-          $nextPnpmPath = Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone/node_modules/.pnpm/*/node_modules/next/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $nextAltPnpmPath = Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/*/node_modules/next/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $hasNext = (Test-Path $nextPath) -or (Test-Path $nextAltPath) -or ($null -ne $nextPnpmPath) -or ($null -ne $nextAltPnpmPath)
-          if (-not $hasNext) {
-            Write-Error "Missing packaged Next runtime in standalone/node_modules or standalone-deps (checked flat and .pnpm layouts)"
+          $rendererIndex = "dist/index.html"
+          if (-not (Test-Path $rendererIndex)) {
+            Write-Error "Missing built renderer index: $rendererIndex"
             exit 1
           }
 
-          $swcHelpersPath = "dist-electron/win-unpacked/resources/standalone/node_modules/.pnpm/node_modules/@swc/helpers/package.json"
-          $swcHelpersAltPath = "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/node_modules/@swc/helpers/package.json"
-          $swcHelpersPnpmPath = Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone/node_modules/.pnpm/*/node_modules/@swc/helpers/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $swcHelpersAltPnpmPath = Get-ChildItem -Path "dist-electron/win-unpacked/resources/standalone-deps/.pnpm/*/node_modules/@swc/helpers/package.json" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $hasSwcHelpers = (Test-Path $swcHelpersPath) -or (Test-Path $swcHelpersAltPath) -or ($null -ne $swcHelpersPnpmPath) -or ($null -ne $swcHelpersAltPnpmPath)
-          if (-not $hasSwcHelpers) {
-            Write-Error "Missing packaged SWC helpers runtime in standalone/node_modules or standalone-deps (checked flat and .pnpm layouts)"
+          $installerPath = "dist-electron/Card Creator.exe"
+          if (-not (Test-Path $installerPath)) {
+            Write-Error "Missing Windows installer artifact: $installerPath"
             exit 1
           }
 
-      - name: Verify packaged standalone server (macOS)
+      - name: Verify packaged app bundle (macOS)
         if: ${{ matrix.target == 'mac' }}
         shell: bash
         run: |
@@ -135,27 +127,15 @@ jobs:
             exit 1
           fi
 
-          server_path="$app_bundle/Contents/Resources/standalone/server.js"
-          if [ ! -f "$server_path" ]; then
-            echo "Missing packaged standalone server: $server_path"
+          renderer_index="dist/index.html"
+          if [ ! -f "$renderer_index" ]; then
+            echo "Missing built renderer index: $renderer_index"
             exit 1
           fi
 
-          next_path="$app_bundle/Contents/Resources/standalone/node_modules/next/package.json"
-          next_alt_path="$app_bundle/Contents/Resources/standalone-deps/next/package.json"
-          next_pnpm_path=$(find "$app_bundle/Contents/Resources/standalone/node_modules/.pnpm" -path "*/node_modules/next/package.json" -type f 2>/dev/null | head -n 1 || true)
-          next_alt_pnpm_path=$(find "$app_bundle/Contents/Resources/standalone-deps/.pnpm" -path "*/node_modules/next/package.json" -type f 2>/dev/null | head -n 1 || true)
-          if [ ! -f "$next_path" ] && [ ! -f "$next_alt_path" ] && [ -z "$next_pnpm_path" ] && [ -z "$next_alt_pnpm_path" ]; then
-            echo "Missing packaged Next runtime in standalone/node_modules or standalone-deps (checked flat and .pnpm layouts)"
-            exit 1
-          fi
-
-          swc_helpers_path="$app_bundle/Contents/Resources/standalone/node_modules/.pnpm/node_modules/@swc/helpers/package.json"
-          swc_helpers_alt_path="$app_bundle/Contents/Resources/standalone-deps/.pnpm/node_modules/@swc/helpers/package.json"
-          swc_helpers_pnpm_path=$(find "$app_bundle/Contents/Resources/standalone/node_modules/.pnpm" -path "*/node_modules/@swc/helpers/package.json" -type f 2>/dev/null | head -n 1 || true)
-          swc_helpers_alt_pnpm_path=$(find "$app_bundle/Contents/Resources/standalone-deps/.pnpm" -path "*/node_modules/@swc/helpers/package.json" -type f 2>/dev/null | head -n 1 || true)
-          if [ ! -f "$swc_helpers_path" ] && [ ! -f "$swc_helpers_alt_path" ] && [ -z "$swc_helpers_pnpm_path" ] && [ -z "$swc_helpers_alt_pnpm_path" ]; then
-            echo "Missing packaged SWC helpers runtime in standalone/node_modules or standalone-deps (checked flat and .pnpm layouts)"
+          dmg_path=$(find dist-electron -maxdepth 1 -name "*.dmg" -type f | head -n 1)
+          if [ -z "$dmg_path" ]; then
+            echo "Missing macOS dmg artifact"
             exit 1
           fi
 

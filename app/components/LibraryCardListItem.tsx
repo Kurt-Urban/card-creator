@@ -1,7 +1,5 @@
 "use client";
 
-import Image from "next/image";
-
 import { CardRecord } from "../card-builder";
 
 type LibraryCardListItemProps = {
@@ -30,14 +28,15 @@ export function LibraryCardListItem({
             style={{ backgroundColor: entry.card.artBackground }}
           >
             {entry.artImage ? (
-              <Image
+              <img
                 src={entry.artImage}
                 alt={entry.name}
-                fill
-                sizes="48px"
-                unoptimized
                 className="object-cover"
                 style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
                   objectPosition: `${entry.card.artOffsetX}% ${entry.card.artOffsetY}%`,
                 }}
               />
