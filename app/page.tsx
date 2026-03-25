@@ -1691,6 +1691,12 @@ export default function Home() {
           )}
         </section>
       </div>
+      <div
+        className="pointer-events-none fixed bottom-3 right-4 select-none text-xs text-slate-600"
+        aria-hidden="true"
+      >
+        v{import.meta.env.VITE_APP_VERSION}
+      </div>
     </main>
   );
 }
