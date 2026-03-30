@@ -12,7 +12,6 @@ type DirectoryNavigatorProps = {
   onOpenSubdirectory: (name: string) => void;
   onRefresh: () => void;
   onCreateSubdirectory: (name: string) => void;
-  onDeleteSubdirectory: (name: string) => void;
   onConvertJsonFile?: (fileName: string) => void;
 };
 
@@ -26,7 +25,6 @@ export function DirectoryNavigator({
   onOpenSubdirectory,
   onRefresh,
   onCreateSubdirectory,
-  onDeleteSubdirectory,
   onConvertJsonFile,
 }: DirectoryNavigatorProps) {
   const [newFolderName, setNewFolderName] = useState("");
@@ -114,7 +112,7 @@ export function DirectoryNavigator({
             aria-label="Subdirectory and file list"
           >
             {subdirectories.map((name) => (
-              <li key={name} className="flex gap-2">
+              <li key={name}>
                 <button
                   type="button"
                   onClick={() => onOpenSubdirectory(name)}
@@ -123,15 +121,6 @@ export function DirectoryNavigator({
                   className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-left text-sm text-slate-100 transition hover:border-cyan-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {name}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDeleteSubdirectory(name)}
-                  disabled={isBusy}
-                  aria-label={`Delete subdirectory ${name}`}
-                  className="rounded-lg border border-rose-500/70 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Delete
                 </button>
               </li>
             ))}

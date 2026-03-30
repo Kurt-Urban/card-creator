@@ -89,7 +89,6 @@ type CardBuilderContextValue = {
   goUpDirectory: () => Promise<void>;
   openSubdirectory: (name: string) => Promise<void>;
   createSubdirectory: (name: string) => Promise<void>;
-  deleteSubdirectory: (name: string) => Promise<void>;
   setCurrentLibraryPage: (page: number) => void;
   loadRecordToBuilder: (entry: CardRecord) => void;
   exportRecordAsPng: (entry: CardRecord) => Promise<void>;

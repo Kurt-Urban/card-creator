@@ -301,25 +301,6 @@ async function findFallbackJsonFileName(
   return jsonNames[0] ?? null;
 }
 
-async function hasCardsJsonFile(
-  directoryHandle: DirectoryHandleLike,
-): Promise<boolean> {
-  const fileName = getLibraryFileName(directoryHandle);
-
-  try {
-    await directoryHandle.getFileHandle(fileName, {
-      create: false,
-    });
-    return true;
-  } catch (error) {
-    if (isNotFoundError(error)) {
-      return false;
-    }
-
-    throw error;
-  }
-}
-
 function sanitizeFolderName(input: string): string {
   return input
     .trim()
@@ -1538,67 +1519,6 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
     }
   };
 
-  const deleteSubdirectory = async (name: string) => {
-    if (
-      !directoryHandle ||
-      !directoryHandle.removeEntry ||
-      !directoryHandle.getDirectoryHandle
-    ) {
-      setStorageMessage(
-        "This folder does not support safe subdirectory deletion.",
-      );
-      return;
-    }
-
-    if (EXCLUDED_DIRECTORY_NAMES.has(name)) {
-      setStorageMessage(
-        `${name} is protected and cannot be deleted from the app.`,
-      );
-      return;
-    }
-
-    try {
-      const targetHandle = await directoryHandle.getDirectoryHandle(name, {
-        create: false,
-      });
-      const hasCardsFile = await hasCardsJsonFile(targetHandle);
-      if (hasCardsFile) {
-        const libraryFileName = getLibraryFileName(targetHandle);
-        setStorageMessage(
-          `Cannot delete ${name} because it contains an active ${libraryFileName} file.`,
-        );
-        return;
-      }
-    } catch (error) {
-      if (isNotFoundError(error)) {
-        setStorageMessage("That folder no longer exists.");
-        void refreshCurrentDirectory();
-        return;
-      }
-
-      setStorageMessage("Could not validate folder contents before deletion.");
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Delete folder "${name}" and all of its contents? This cannot be undone.`,
-    );
-    if (!confirmed) {
-      return;
-    }
-
-    setIsNavigatingDirectories(true);
-    try {
-      await directoryHandle.removeEntry(name, { recursive: true });
-      await reloadCardsFromFolder(directoryHandle, "Reloaded");
-      setStorageMessage(`Deleted folder ${name}.`);
-    } catch {
-      setStorageMessage("Could not delete that folder.");
-    } finally {
-      setIsNavigatingDirectories(false);
-    }
-  };
-
   const pickCardsFolder = async () => {
     if (!isPickerSupported || typeof window === "undefined") {
       setStorageMessage(
@@ -2061,7 +1981,6 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
     goUpDirectory,
     openSubdirectory,
     createSubdirectory,
-    deleteSubdirectory,
     setCurrentLibraryPage,
     loadRecordToBuilder,
     exportRecordAsPng: async (entry: CardRecord) => {

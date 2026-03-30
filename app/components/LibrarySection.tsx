@@ -41,7 +41,6 @@ type LibrarySectionProps = {
   onOpenSubdirectory: (name: string) => void;
   onRefreshDirectory: () => void;
   onCreateSubdirectory: (name: string) => void;
-  onDeleteSubdirectory: (name: string) => void;
   onPageChange: (page: number) => void;
   onLoadRecord: (entry: CardRecord) => void;
   onExportRecord: (entry: CardRecord) => void;
@@ -83,7 +82,6 @@ export function LibrarySection({
   onOpenSubdirectory,
   onRefreshDirectory,
   onCreateSubdirectory,
-  onDeleteSubdirectory,
   onPageChange,
   onLoadRecord,
   onExportRecord,
@@ -271,7 +269,6 @@ export function LibrarySection({
             onOpenSubdirectory={onOpenSubdirectory}
             onRefresh={onRefreshDirectory}
             onCreateSubdirectory={onCreateSubdirectory}
-            onDeleteSubdirectory={onDeleteSubdirectory}
             onConvertJsonFile={onMigrateJsonFile}
           />
           <p className="rounded-xl border border-slate-700/80 bg-slate-950/70 p-4 text-sm text-slate-300">
@@ -292,7 +289,6 @@ export function LibrarySection({
             onOpenSubdirectory={onOpenSubdirectory}
             onRefresh={onRefreshDirectory}
             onCreateSubdirectory={onCreateSubdirectory}
-            onDeleteSubdirectory={onDeleteSubdirectory}
             onConvertJsonFile={onMigrateJsonFile}
           />
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/80 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">

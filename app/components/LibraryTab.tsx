@@ -39,7 +39,6 @@ export function LibraryTab() {
     goUpDirectory,
     openSubdirectory,
     createSubdirectory,
-    deleteSubdirectory,
     setCurrentLibraryPage,
     loadRecordToBuilder,
     exportRecordAsPng,
@@ -105,9 +104,6 @@ export function LibraryTab() {
       }}
       onCreateSubdirectory={(name) => {
         void createSubdirectory(name);
-      }}
-      onDeleteSubdirectory={(name) => {
-        void deleteSubdirectory(name);
       }}
       onPageChange={setCurrentLibraryPage}
       onLoadRecord={loadRecordToBuilder}
