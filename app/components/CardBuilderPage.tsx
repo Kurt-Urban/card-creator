@@ -28,7 +28,18 @@ function CardBuilderLayout() {
 
           <StorageStatusPanel />
 
-          {activeView === "builder" ? <BuilderTab /> : <LibraryTab />}
+          <div className="relative isolate">
+            {activeView === "builder" && (
+              <div key="builder-tab-panel" className="relative z-10">
+                <BuilderTab />
+              </div>
+            )}
+            {activeView === "library" && (
+              <div key="library-tab-panel" className="relative z-10">
+                <LibraryTab />
+              </div>
+            )}
+          </div>
         </section>
       </div>
       <div

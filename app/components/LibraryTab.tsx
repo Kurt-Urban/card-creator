@@ -42,6 +42,7 @@ export function LibraryTab() {
     setCurrentLibraryPage,
     loadRecordToBuilder,
     exportRecordAsPng,
+    deleteRecord,
   } = useCardBuilderContext();
 
   return (
@@ -109,6 +110,9 @@ export function LibraryTab() {
       onLoadRecord={loadRecordToBuilder}
       onExportRecord={(entry) => {
         void exportRecordAsPng(entry);
+      }}
+      onDeleteRecord={(entry) => {
+        void deleteRecord(entry);
       }}
     />
   );

@@ -44,6 +44,7 @@ type LibrarySectionProps = {
   onPageChange: (page: number) => void;
   onLoadRecord: (entry: CardRecord) => void;
   onExportRecord: (entry: CardRecord) => void;
+  onDeleteRecord: (entry: CardRecord) => void;
 };
 
 export function LibrarySection({
@@ -85,6 +86,7 @@ export function LibrarySection({
   onPageChange,
   onLoadRecord,
   onExportRecord,
+  onDeleteRecord,
 }: LibrarySectionProps) {
   const [isPushDialogOpen, setIsPushDialogOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
@@ -335,6 +337,7 @@ export function LibrarySection({
                   isExporting={isExporting}
                   onLoad={onLoadRecord}
                   onExport={onExportRecord}
+                  onDelete={onDeleteRecord}
                 />
               ))}
             </div>

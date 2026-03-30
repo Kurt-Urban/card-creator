@@ -10,7 +10,7 @@
     "build": "vite build",
     "build:app": "pnpm run build && electron-builder --dir --publish never",
     "build:mac": "pnpm run build && electron-builder --mac --publish never",
-    "build:win": "pnpm run build && electron-builder --win --publish never",
+    "build:win": "taskkill /F /IM \"Card Creator.exe\" /T 2>/dev/null || true; taskkill /F /IM electron.exe /T 2>/dev/null || true; sleep 2 && pnpm run build && electron-builder --win --publish never",
     "mac:local": "pnpm run build && pnpm run start:electron",
     "win:local": "pnpm run build && pnpm run start:electron",
     "verify:mac": "pnpm lint && pnpm run build:mac",

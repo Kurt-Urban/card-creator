@@ -1628,6 +1628,19 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
       }
 
       const nextLibraryResult = await readLibraryFile(directoryHandle);
+      if (!nextLibraryResult.fileExists) {
+        const libraryFileName = getLibraryFileName(directoryHandle);
+        const confirmed = window.confirm(
+          `No ${libraryFileName} exists in ${currentPathLabel}. Create it and save this card?`,
+        );
+        if (!confirmed) {
+          setStorageMessage(
+            `Save cancelled. ${libraryFileName} was not created in ${currentPathLabel}.`,
+          );
+          return;
+        }
+      }
+
       const nextLibrary = {
         ...nextLibraryResult.data,
         cards: [...nextLibraryResult.data.cards],
@@ -1669,6 +1682,73 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
       setStorageMessage("Save failed. Check folder permissions and try again.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const deleteRecord = async (record: CardRecord) => {
+    if (!directoryHandle) {
+      setStorageMessage("Select a folder first.");
+      return;
+    }
+
+    const libraryFileName = getLibraryFileName(directoryHandle);
+    const confirmed = window.confirm(
+      `Delete ${record.name} from ${libraryFileName}? This cannot be undone.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const granted = await ensureDirectoryPermission(directoryHandle, true);
+      if (!granted) {
+        setStorageMessage("Cannot delete without folder write permission.");
+        return;
+      }
+
+      const nextLibraryResult = await readLibraryFile(directoryHandle);
+      const remainingCards = nextLibraryResult.data.cards.filter(
+        (entry) => entry.id !== record.id,
+      );
+
+      if (remainingCards.length === nextLibraryResult.data.cards.length) {
+        setStorageMessage(`${record.name} was already removed.`);
+        return;
+      }
+
+      if (remainingCards.length === 0) {
+        if (directoryHandle.removeEntry) {
+          await directoryHandle.removeEntry(libraryFileName);
+          setLibraryCards([]);
+          setCardsFileExists(false);
+          setCurrentLibraryPage(1);
+          setStorageMessage(
+            `Deleted ${record.name}. Removed empty ${libraryFileName}.`,
+          );
+          return;
+        }
+
+        setStorageMessage(
+          `Deleted ${record.name}, but this folder handle cannot remove ${libraryFileName}.`,
+        );
+      }
+
+      const nextLibrary = {
+        ...nextLibraryResult.data,
+        cards: remainingCards,
+        settings: librarySettings,
+      };
+
+      await writeLibraryFile(directoryHandle, nextLibrary);
+      const sorted = sortByNewest(remainingCards);
+      setLibraryCards(sorted);
+      setCardsFileExists(true);
+      setCurrentLibraryPage((current) =>
+        Math.min(current, Math.max(1, Math.ceil(sorted.length / LIBRARY_PAGE_SIZE))),
+      );
+      setStorageMessage(`Deleted ${record.name} from ${libraryFileName}.`);
+    } catch {
+      setStorageMessage("Delete failed. Check folder permissions and try again.");
     }
   };
 
@@ -1986,6 +2066,7 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
     exportRecordAsPng: async (entry: CardRecord) => {
       await exportCardAsPng(entry.card, entry.artImage);
     },
+    deleteRecord,
   };
 
   return (

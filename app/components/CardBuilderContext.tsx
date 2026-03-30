@@ -92,6 +92,7 @@ type CardBuilderContextValue = {
   setCurrentLibraryPage: (page: number) => void;
   loadRecordToBuilder: (entry: CardRecord) => void;
   exportRecordAsPng: (entry: CardRecord) => Promise<void>;
+  deleteRecord: (entry: CardRecord) => Promise<void>;
 };
 
 export const CardBuilderContext = createContext<CardBuilderContextValue | null>(
