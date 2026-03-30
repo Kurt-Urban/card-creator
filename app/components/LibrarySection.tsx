@@ -1,11 +1,18 @@
 "use client";
 
 import { CardRecord } from "../card-builder";
+import { DirectoryNavigator } from "./DirectoryNavigator";
 import { LibraryCardListItem } from "./LibraryCardListItem";
 
 type LibrarySectionProps = {
   directoryConnected: boolean;
   directoryHandleAvailable: boolean;
+  cardsFileExists: boolean;
+  mismatchedJsonFileName: string | null;
+  currentPathLabel: string;
+  subdirectories: string[];
+  canGoUp: boolean;
+  isNavigatingDirectories: boolean;
   libraryCards: CardRecord[];
   paginatedLibraryCards: CardRecord[];
   currentLibraryPage: number;
@@ -18,6 +25,12 @@ type LibrarySectionProps = {
   onExportAll: () => void;
   onExportSheet: () => void;
   onReload: () => void;
+  onMigrateJsonFile: (fileName: string) => void;
+  onGoUpDirectory: () => void;
+  onOpenSubdirectory: (name: string) => void;
+  onRefreshDirectory: () => void;
+  onCreateSubdirectory: (name: string) => void;
+  onDeleteSubdirectory: (name: string) => void;
   onPageChange: (page: number) => void;
   onLoadRecord: (entry: CardRecord) => void;
   onExportRecord: (entry: CardRecord) => void;
@@ -26,6 +39,12 @@ type LibrarySectionProps = {
 export function LibrarySection({
   directoryConnected,
   directoryHandleAvailable,
+  cardsFileExists,
+  mismatchedJsonFileName,
+  currentPathLabel,
+  subdirectories,
+  canGoUp,
+  isNavigatingDirectories,
   libraryCards,
   paginatedLibraryCards,
   currentLibraryPage,
@@ -38,6 +57,12 @@ export function LibrarySection({
   onExportAll,
   onExportSheet,
   onReload,
+  onMigrateJsonFile,
+  onGoUpDirectory,
+  onOpenSubdirectory,
+  onRefreshDirectory,
+  onCreateSubdirectory,
+  onDeleteSubdirectory,
   onPageChange,
   onLoadRecord,
   onExportRecord,
@@ -95,15 +120,45 @@ export function LibrarySection({
 
       {!directoryConnected ? (
         <p className="rounded-xl border border-amber-500/40 bg-amber-900/20 p-4 text-sm text-amber-200">
-          Choose a folder first, then cards will be read from cards.json in that
-          folder.
+          Choose a folder first, then cards will be read from the folder's{" "}
+          <code>-cards.json</code> library file.
         </p>
       ) : libraryCards.length === 0 ? (
-        <p className="rounded-xl border border-slate-700/80 bg-slate-950/70 p-4 text-sm text-slate-300">
-          No saved cards found yet. Save one from the builder tab.
-        </p>
+        <>
+          <DirectoryNavigator
+            currentPathLabel={currentPathLabel}
+            subdirectories={subdirectories}
+            fallbackJsonFileName={mismatchedJsonFileName}
+            canGoUp={canGoUp}
+            isBusy={isNavigatingDirectories}
+            onGoUp={onGoUpDirectory}
+            onOpenSubdirectory={onOpenSubdirectory}
+            onRefresh={onRefreshDirectory}
+            onCreateSubdirectory={onCreateSubdirectory}
+            onDeleteSubdirectory={onDeleteSubdirectory}
+            onConvertJsonFile={onMigrateJsonFile}
+          />
+          <p className="rounded-xl border border-slate-700/80 bg-slate-950/70 p-4 text-sm text-slate-300">
+            {cardsFileExists
+              ? "No saved cards found yet. Save one from the builder tab."
+              : "No library JSON file was found in this folder. Browse into a subdirectory or save a card to create one here."}
+          </p>
+        </>
       ) : (
         <div className="space-y-3">
+          <DirectoryNavigator
+            currentPathLabel={currentPathLabel}
+            subdirectories={subdirectories}
+            fallbackJsonFileName={mismatchedJsonFileName}
+            canGoUp={canGoUp}
+            isBusy={isNavigatingDirectories}
+            onGoUp={onGoUpDirectory}
+            onOpenSubdirectory={onOpenSubdirectory}
+            onRefresh={onRefreshDirectory}
+            onCreateSubdirectory={onCreateSubdirectory}
+            onDeleteSubdirectory={onDeleteSubdirectory}
+            onConvertJsonFile={onMigrateJsonFile}
+          />
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/80 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
             <p>
               Showing {(currentLibraryPage - 1) * pageSize + 1}-
