@@ -22,6 +22,13 @@ type CardBuilderContextValue = {
   directoryLabel: string;
   exportDirectoryLabel: string;
   storageMessage: string;
+  gitMessage: string;
+  isGitAvailable: boolean;
+  isGitBusy: boolean;
+  gitRepoConnected: boolean;
+  gitRepoLabel: string;
+  gitBranchLabel: string;
+  gitUserLabel: string;
   card: CardState;
   artImage: string | null;
   librarySettings: CardLibrarySettings;
@@ -74,6 +81,9 @@ type CardBuilderContextValue = {
   pickExportFolder: () => Promise<void>;
   exportAllCardsAsPng: () => Promise<void>;
   exportLibrarySheet: () => Promise<void>;
+  connectGitRepo: () => Promise<void>;
+  pullGitRepo: () => Promise<void>;
+  pushGitRepo: (commitMessage?: string) => Promise<void>;
   refreshCurrentDirectory: () => Promise<void>;
   migrateJsonFileToDirectoryFormat: (fileName: string) => Promise<void>;
   goUpDirectory: () => Promise<void>;

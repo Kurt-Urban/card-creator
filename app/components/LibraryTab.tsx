@@ -24,6 +24,16 @@ export function LibraryTab() {
     pickExportFolder,
     exportAllCardsAsPng,
     exportLibrarySheet,
+    gitMessage,
+    isGitAvailable,
+    isGitBusy,
+    gitRepoConnected,
+    gitRepoLabel,
+    gitBranchLabel,
+    gitUserLabel,
+    connectGitRepo,
+    pullGitRepo,
+    pushGitRepo,
     refreshCurrentDirectory,
     migrateJsonFileToDirectoryFormat,
     goUpDirectory,
@@ -53,6 +63,13 @@ export function LibraryTab() {
       isExporting={isExporting}
       isExportFolderBusy={isExportFolderBusy}
       exportDirectoryHandleAvailable={exportDirectoryHandleAvailable}
+      gitMessage={gitMessage}
+      isGitAvailable={isGitAvailable}
+      isGitBusy={isGitBusy}
+      gitRepoConnected={gitRepoConnected}
+      gitRepoLabel={gitRepoLabel}
+      gitBranchLabel={gitBranchLabel}
+      gitUserLabel={gitUserLabel}
       onPickExportFolder={() => {
         void pickExportFolder();
       }}
@@ -61,6 +78,15 @@ export function LibraryTab() {
       }}
       onExportSheet={() => {
         void exportLibrarySheet();
+      }}
+      onConnectGitRepo={() => {
+        void connectGitRepo();
+      }}
+      onPullGitRepo={() => {
+        void pullGitRepo();
+      }}
+      onPushGitRepo={(commitMessage) => {
+        void pushGitRepo(commitMessage);
       }}
       onReload={() => {
         void refreshCurrentDirectory();

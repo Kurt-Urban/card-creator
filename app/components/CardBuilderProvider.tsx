@@ -25,6 +25,7 @@ import {
   ChangeEvent,
   ReactNode,
   RefObject,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -72,6 +73,64 @@ type DirectoryHandleLike = {
 
 type WindowWithDirectoryPicker = Window & {
   showDirectoryPicker?: () => Promise<unknown>;
+  enchuntedElectron?: {
+    git?: GitBridge;
+    fs?: ElectronFsBridge;
+  };
+};
+
+type ElectronDirectoryEntry = {
+  name: string;
+  kind: "file" | "directory";
+};
+
+type ElectronFsBridge = {
+  listDirectory: (directoryPath: string) => Promise<ElectronDirectoryEntry[]>;
+  getFileHandle: (
+    directoryPath: string,
+    fileName: string,
+    create?: boolean,
+  ) => Promise<{ filePath: string }>;
+  getDirectoryHandle: (
+    directoryPath: string,
+    directoryName: string,
+    create?: boolean,
+  ) => Promise<{ path: string; name: string }>;
+  readTextFile: (filePath: string) => Promise<string>;
+  writeTextFile: (filePath: string, content: string) => Promise<{ ok: true }>;
+  writeBinaryFile: (filePath: string, base64: string) => Promise<{ ok: true }>;
+  removeEntry: (
+    directoryPath: string,
+    entryName: string,
+    recursive?: boolean,
+  ) => Promise<{ ok: true }>;
+};
+
+type GitRepoInfo = {
+  repoRoot: string;
+  repoName: string;
+  branch: string;
+  remoteUrl: string | null;
+  userName: string | null;
+  userEmail: string | null;
+};
+
+type GitCommandResult = {
+  ok: boolean;
+  code?: string;
+  message: string;
+  details?: string;
+  repo?: GitRepoInfo;
+};
+
+type GitBridge = {
+  pickRepo: () => Promise<GitCommandResult>;
+  detectRepo: (folderPath: string) => Promise<GitCommandResult>;
+  pullRepo: (folderPath: string) => Promise<GitCommandResult>;
+  pushRepo: (
+    folderPath: string,
+    commitMessage?: string,
+  ) => Promise<GitCommandResult>;
 };
 
 const DB_NAME = "enchunted-local-storage";
@@ -80,6 +139,7 @@ const DB_STORE = "settings";
 const DB_DIRECTORY_KEY = "cards-directory-handle";
 const DB_EXPORT_DIRECTORY_KEY = "export-directory-handle";
 const LOCAL_CACHE_KEY = "cards-library-cache";
+const LOCAL_GIT_REPO_PATH_KEY = "enchunted-git-repo-path";
 const LIBRARY_PAGE_SIZE = 24;
 const SHEET_COLS = 10;
 const SHEET_MIN_ROWS = 2;
@@ -525,6 +585,198 @@ async function wait(durationMs: number) {
   });
 }
 
+function getGitBridge(): GitBridge | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return (window as WindowWithDirectoryPicker).enchuntedElectron?.git ?? null;
+}
+
+function getElectronFsBridge(): ElectronFsBridge | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return (window as WindowWithDirectoryPicker).enchuntedElectron?.fs ?? null;
+}
+
+function createNotFoundError(message: string) {
+  const error = new Error(message);
+  error.name = "NotFoundError";
+  return error;
+}
+
+function createElectronFileHandle(filePath: string): FileHandleLike {
+  return {
+    getFile: async () => {
+      const fsBridge = getElectronFsBridge();
+      if (!fsBridge) {
+        throw new Error("Electron filesystem bridge is unavailable.");
+      }
+
+      const text = await fsBridge.readTextFile(filePath);
+      return {
+        text: async () => text,
+      } as File;
+    },
+    createWritable: async () => {
+      const fsBridge = getElectronFsBridge();
+      if (!fsBridge) {
+        throw new Error("Electron filesystem bridge is unavailable.");
+      }
+
+      return {
+        write: async (data: string | Blob) => {
+          if (typeof data === "string") {
+            await fsBridge.writeTextFile(filePath, data);
+            return;
+          }
+
+          const bytes = new Uint8Array(await data.arrayBuffer());
+          let binary = "";
+          for (const value of bytes) {
+            binary += String.fromCharCode(value);
+          }
+          await fsBridge.writeBinaryFile(filePath, btoa(binary));
+        },
+        close: async () => {},
+      };
+    },
+  };
+}
+
+function createElectronDirectoryHandle(
+  directoryPath: string,
+): DirectoryHandleLike {
+  return {
+    name:
+      directoryPath.split(/[\\/]/).filter(Boolean).pop() ?? "Selected folder",
+    getFileHandle: async (fileName, options) => {
+      const fsBridge = getElectronFsBridge();
+      if (!fsBridge) {
+        throw new Error("Electron filesystem bridge is unavailable.");
+      }
+
+      try {
+        if (!(options?.create ?? false)) {
+          const entries = await fsBridge.listDirectory(directoryPath);
+          const matchingEntry = entries.find(
+            (entry) => entry.kind === "file" && entry.name === fileName,
+          );
+
+          if (!matchingEntry) {
+            throw createNotFoundError(`File not found: ${fileName}`);
+          }
+        }
+
+        const result = await fsBridge.getFileHandle(
+          directoryPath,
+          fileName,
+          options?.create ?? false,
+        );
+        return createElectronFileHandle(result.filePath);
+      } catch (error) {
+        if (isNotFoundError(error)) {
+          throw error;
+        }
+        throw createNotFoundError(`File not found: ${fileName}`);
+      }
+    },
+    getDirectoryHandle: async (directoryName, options) => {
+      const fsBridge = getElectronFsBridge();
+      if (!fsBridge) {
+        throw new Error("Electron filesystem bridge is unavailable.");
+      }
+
+      try {
+        if (!(options?.create ?? false)) {
+          const entries = await fsBridge.listDirectory(directoryPath);
+          const matchingEntry = entries.find(
+            (entry) =>
+              entry.kind === "directory" && entry.name === directoryName,
+          );
+
+          if (!matchingEntry) {
+            throw createNotFoundError(`Directory not found: ${directoryName}`);
+          }
+        }
+
+        const result = await fsBridge.getDirectoryHandle(
+          directoryPath,
+          directoryName,
+          options?.create ?? false,
+        );
+        return createElectronDirectoryHandle(result.path);
+      } catch (error) {
+        if (isNotFoundError(error)) {
+          throw error;
+        }
+        throw createNotFoundError(`Directory not found: ${directoryName}`);
+      }
+    },
+    removeEntry: async (name, options) => {
+      const fsBridge = getElectronFsBridge();
+      if (!fsBridge) {
+        throw new Error("Electron filesystem bridge is unavailable.");
+      }
+
+      await fsBridge.removeEntry(
+        directoryPath,
+        name,
+        options?.recursive ?? false,
+      );
+    },
+    entries: async function* () {
+      const fsBridge = getElectronFsBridge();
+      if (!fsBridge) {
+        throw new Error("Electron filesystem bridge is unavailable.");
+      }
+
+      const entries = await fsBridge.listDirectory(directoryPath);
+      for (const entry of entries) {
+        yield [entry.name, { kind: entry.kind }];
+      }
+    },
+    queryPermission: async () => "granted",
+    requestPermission: async () => "granted",
+  };
+}
+
+function formatGitUserLabel(repo: GitRepoInfo | null): string {
+  if (!repo) {
+    return "No local git user found";
+  }
+
+  if (repo.userName && repo.userEmail) {
+    return `${repo.userName} <${repo.userEmail}>`;
+  }
+
+  return repo.userName ?? repo.userEmail ?? "No local git user found";
+}
+
+function buildGitMessage(prefix: string, repo: GitRepoInfo): string {
+  const identitySuffix =
+    repo.userName || repo.userEmail
+      ? `Using ${formatGitUserLabel(repo)} from local git config.`
+      : "No local git user name/email was found; push and pull may still work through SSH or stored credentials.";
+
+  return `${prefix} ${identitySuffix}`;
+}
+
+function persistGitRepoPath(path: string | null) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (path) {
+    window.localStorage.setItem(LOCAL_GIT_REPO_PATH_KEY, path);
+    return;
+  }
+
+  window.localStorage.removeItem(LOCAL_GIT_REPO_PATH_KEY);
+}
+
 type CardBuilderProviderProps = {
   children: ReactNode;
 };
@@ -575,6 +827,12 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
   const [mismatchedJsonFileName, setMismatchedJsonFileName] = useState<
     string | null
   >(null);
+  const [gitRepo, setGitRepo] = useState<GitRepoInfo | null>(null);
+  const [gitMessage, setGitMessage] = useState(
+    "Git sync is available only in the Electron desktop app.",
+  );
+  const [isGitAvailable, setIsGitAvailable] = useState(false);
+  const [isGitBusy, setIsGitBusy] = useState(false);
 
   const [isPickerSupported, setIsPickerSupported] = useState(false);
 
@@ -585,6 +843,14 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
 
     setIsPickerSupported(
       "showDirectoryPicker" in (window as WindowWithDirectoryPicker),
+    );
+
+    const gitAvailable = Boolean(getGitBridge());
+    setIsGitAvailable(gitAvailable);
+    setGitMessage(
+      gitAvailable
+        ? "Connect a git repo to enable pull and push with your local git credentials."
+        : "Git sync is available only in the Electron desktop app.",
     );
   }, []);
 
@@ -606,42 +872,59 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
 
   const canGoUp = directoryPathSegments.length > 0;
 
-  const reloadCardsFromFolder = async (
-    nextHandle: DirectoryHandleLike,
-    statusPrefix = "Loaded",
-  ) => {
-    const libraryFileName = getLibraryFileName(nextHandle);
-    const [libraryResult, childDirectories, fallbackJsonFileName] =
-      await Promise.all([
-        readLibraryFile(nextHandle),
-        listSubdirectories(nextHandle),
-        findFallbackJsonFileName(nextHandle),
-      ]);
-    const sorted = sortByNewest(libraryResult.data.cards);
-    setLibrarySettings(libraryResult.data.settings);
-    setLibraryCards(sorted);
-    setCardsFileExists(libraryResult.fileExists);
-    setMismatchedJsonFileName(
-      !libraryResult.fileExists && fallbackJsonFileName !== libraryFileName
-        ? fallbackJsonFileName
-        : null,
-    );
-    setSubdirectories(childDirectories);
-    setCurrentLibraryPage(1);
-
-    if (!libraryResult.fileExists) {
-      setStorageMessage(
-        childDirectories.length > 0
-          ? `No ${libraryFileName} in this folder. Choose a subdirectory or save a card to create one.`
-          : `No ${libraryFileName} in this folder yet. Save a card to create one.`,
+  const reloadCardsFromFolder = useCallback(
+    async (nextHandle: DirectoryHandleLike, statusPrefix = "Loaded") => {
+      const libraryFileName = getLibraryFileName(nextHandle);
+      const [libraryResult, childDirectories, fallbackJsonFileName] =
+        await Promise.all([
+          readLibraryFile(nextHandle),
+          listSubdirectories(nextHandle),
+          findFallbackJsonFileName(nextHandle),
+        ]);
+      const sorted = sortByNewest(libraryResult.data.cards);
+      setLibrarySettings(libraryResult.data.settings);
+      setLibraryCards(sorted);
+      setCardsFileExists(libraryResult.fileExists);
+      setMismatchedJsonFileName(
+        !libraryResult.fileExists && fallbackJsonFileName !== libraryFileName
+          ? fallbackJsonFileName
+          : null,
       );
-      return;
-    }
+      setSubdirectories(childDirectories);
+      setCurrentLibraryPage(1);
 
-    setStorageMessage(
-      `${statusPrefix} ${sorted.length} card${sorted.length === 1 ? "" : "s"}.`,
-    );
-  };
+      if (!libraryResult.fileExists) {
+        setStorageMessage(
+          childDirectories.length > 0
+            ? `No ${libraryFileName} in this folder. Choose a subdirectory or save a card to create one.`
+            : `No ${libraryFileName} in this folder yet. Save a card to create one.`,
+        );
+        return;
+      }
+
+      setStorageMessage(
+        `${statusPrefix} ${sorted.length} card${sorted.length === 1 ? "" : "s"}.`,
+      );
+    },
+    [],
+  );
+
+  const openDirectoryHandle = useCallback(
+    async (
+      nextHandle: DirectoryHandleLike,
+      nextDirectoryName?: string,
+      statusPrefix = "Loaded",
+    ) => {
+      setRootDirectoryHandle(nextHandle);
+      setDirectoryHandle(nextHandle);
+      setDirectoryName(
+        nextDirectoryName ?? nextHandle.name ?? "Selected folder",
+      );
+      setDirectoryPathSegments([]);
+      await reloadCardsFromFolder(nextHandle, statusPrefix);
+    },
+    [reloadCardsFromFolder],
+  );
 
   useEffect(() => {
     const cachedSnapshot = loadCachedLibrarySnapshot();
@@ -741,7 +1024,7 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
     };
 
     void restoreFolder();
-  }, []);
+  }, [reloadCardsFromFolder]);
 
   useEffect(() => {
     const restoreExportFolder = async () => {
@@ -776,6 +1059,51 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
 
     void restoreExportFolder();
   }, []);
+
+  useEffect(() => {
+    const restoreGitRepo = async () => {
+      if (!isGitAvailable || typeof window === "undefined") {
+        return;
+      }
+
+      const bridge = getGitBridge();
+      const storedRepoPath = window.localStorage.getItem(
+        LOCAL_GIT_REPO_PATH_KEY,
+      );
+
+      if (!bridge || !storedRepoPath) {
+        return;
+      }
+
+      setIsGitBusy(true);
+      try {
+        const result = await bridge.detectRepo(storedRepoPath);
+        if (result.ok && result.repo) {
+          setGitRepo(result.repo);
+          persistGitRepoPath(result.repo.repoRoot);
+          await openDirectoryHandle(
+            createElectronDirectoryHandle(result.repo.repoRoot),
+            result.repo.repoName,
+            "Synced",
+          );
+          setGitMessage(
+            buildGitMessage("Reconnected to saved git repo.", result.repo),
+          );
+          return;
+        }
+
+        persistGitRepoPath(null);
+        setGitRepo(null);
+        setGitMessage(result.message);
+      } catch {
+        setGitMessage("Could not restore the previously connected git repo.");
+      } finally {
+        setIsGitBusy(false);
+      }
+    };
+
+    void restoreGitRepo();
+  }, [isGitAvailable, openDirectoryHandle]);
 
   useEffect(() => {
     setIsColorControlsOpen(selectedThemeId === "");
@@ -1006,6 +1334,123 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
       await reloadCardsFromFolder(directoryHandle, "Reloaded");
     } finally {
       setIsNavigatingDirectories(false);
+    }
+  };
+
+  const connectGitRepo = async () => {
+    const bridge = getGitBridge();
+    if (!bridge) {
+      setGitMessage("Git sync is available only in the Electron desktop app.");
+      return;
+    }
+
+    if (gitRepo) {
+      const confirmed = window.confirm(
+        `Disconnect from ${gitRepo.repoName} and choose a different git repo?`,
+      );
+      if (!confirmed) {
+        setGitMessage(`Kept ${gitRepo.repoName} as the active git repo.`);
+        return;
+      }
+    }
+
+    setIsGitBusy(true);
+    try {
+      const result = await bridge.pickRepo();
+      if (result.ok && result.repo) {
+        setGitRepo(result.repo);
+        persistGitRepoPath(result.repo.repoRoot);
+        await openDirectoryHandle(
+          createElectronDirectoryHandle(result.repo.repoRoot),
+          result.repo.repoName,
+          "Connected and loaded",
+        );
+        setGitMessage(
+          buildGitMessage(`Connected to ${result.repo.repoName}.`, result.repo),
+        );
+        return;
+      }
+
+      if (result.code !== "cancelled") {
+        setGitMessage(result.message);
+      }
+    } catch {
+      setGitMessage("Could not connect to a git repo.");
+    } finally {
+      setIsGitBusy(false);
+    }
+  };
+
+  const pullGitRepo = async () => {
+    const bridge = getGitBridge();
+    if (!bridge || !gitRepo) {
+      setGitMessage("Connect a git repo before pulling changes.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Pull the latest changes into ${gitRepo.repoName} on branch ${gitRepo.branch}?`,
+    );
+    if (!confirmed) {
+      setGitMessage(`Cancelled pull for ${gitRepo.repoName}.`);
+      return;
+    }
+
+    setIsGitBusy(true);
+    try {
+      const result = await bridge.pullRepo(gitRepo.repoRoot);
+      if (result.repo) {
+        setGitRepo(result.repo);
+        persistGitRepoPath(result.repo.repoRoot);
+      }
+
+      setGitMessage(
+        result.ok && result.repo
+          ? buildGitMessage(result.message, result.repo)
+          : result.message,
+      );
+    } catch {
+      setGitMessage("Git pull failed unexpectedly.");
+    } finally {
+      setIsGitBusy(false);
+    }
+  };
+
+  const pushGitRepo = async (commitMessage?: string) => {
+    const bridge = getGitBridge();
+    if (!bridge || !gitRepo) {
+      setGitMessage("Connect a git repo before pushing changes.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Push local commits from ${gitRepo.repoName} on branch ${gitRepo.branch} to the remote?`,
+    );
+    if (!confirmed) {
+      setGitMessage(`Cancelled push for ${gitRepo.repoName}.`);
+      return;
+    }
+
+    setIsGitBusy(true);
+    try {
+      const result = await bridge.pushRepo(
+        gitRepo.repoRoot,
+        commitMessage?.trim() ?? "",
+      );
+      if (result.repo) {
+        setGitRepo(result.repo);
+        persistGitRepoPath(result.repo.repoRoot);
+      }
+
+      setGitMessage(
+        result.ok && result.repo
+          ? buildGitMessage(result.message, result.repo)
+          : result.message,
+      );
+    } catch {
+      setGitMessage("Git push failed unexpectedly.");
+    } finally {
+      setIsGitBusy(false);
     }
   };
 
@@ -1538,6 +1983,13 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
     directoryLabel: directoryHandle ? currentPathLabel : "Not connected",
     exportDirectoryLabel: exportDirectoryName || "Not selected",
     storageMessage,
+    gitMessage,
+    isGitAvailable,
+    isGitBusy,
+    gitRepoConnected: Boolean(gitRepo),
+    gitRepoLabel: gitRepo ? gitRepo.repoName : "Not connected",
+    gitBranchLabel: gitRepo?.branch ?? "-",
+    gitUserLabel: formatGitUserLabel(gitRepo),
     card,
     artImage,
     librarySettings,
@@ -1601,6 +2053,9 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
     },
     exportAllCardsAsPng,
     exportLibrarySheet,
+    connectGitRepo,
+    pullGitRepo,
+    pushGitRepo,
     refreshCurrentDirectory,
     migrateJsonFileToDirectoryFormat,
     goUpDirectory,
