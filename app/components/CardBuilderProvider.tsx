@@ -258,32 +258,29 @@ async function resolveDirectoryFromPath(
   return currentHandle;
 }
 
-async function listSubdirectories(
+type DirectoryScanResult = {
+  subdirectories: string[];
+  fallbackJsonFileName: string | null;
+};
+
+async function scanDirectoryContents(
   directoryHandle: DirectoryHandleLike,
-): Promise<string[]> {
+): Promise<DirectoryScanResult> {
   if (!directoryHandle.entries) {
-    return [];
+    return {
+      subdirectories: [],
+      fallbackJsonFileName: null,
+    };
   }
 
   const names: string[] = [];
+  const jsonNames: string[] = [];
   for await (const [name, entry] of directoryHandle.entries()) {
     if (entry.kind === "directory" && !EXCLUDED_DIRECTORY_NAMES.has(name)) {
       names.push(name);
+      continue;
     }
-  }
 
-  return names.sort((a, b) => a.localeCompare(b));
-}
-
-async function findFallbackJsonFileName(
-  directoryHandle: DirectoryHandleLike,
-): Promise<string | null> {
-  if (!directoryHandle.entries) {
-    return null;
-  }
-
-  const jsonNames: string[] = [];
-  for await (const [name, entry] of directoryHandle.entries()) {
     if (entry.kind !== "file") {
       continue;
     }
@@ -293,12 +290,19 @@ async function findFallbackJsonFileName(
     }
   }
 
+  names.sort((a, b) => a.localeCompare(b));
   if (jsonNames.length === 0) {
-    return null;
+    return {
+      subdirectories: names,
+      fallbackJsonFileName: null,
+    };
   }
 
   jsonNames.sort((a, b) => a.localeCompare(b));
-  return jsonNames[0] ?? null;
+  return {
+    subdirectories: names,
+    fallbackJsonFileName: jsonNames[0] ?? null,
+  };
 }
 
 function sanitizeFolderName(input: string): string {
@@ -582,12 +586,6 @@ function getElectronFsBridge(): ElectronFsBridge | null {
   return (window as WindowWithDirectoryPicker).enchuntedElectron?.fs ?? null;
 }
 
-function createNotFoundError(message: string) {
-  const error = new Error(message);
-  error.name = "NotFoundError";
-  return error;
-}
-
 function createElectronFileHandle(filePath: string): FileHandleLike {
   return {
     getFile: async () => {
@@ -640,17 +638,6 @@ function createElectronDirectoryHandle(
       }
 
       try {
-        if (!(options?.create ?? false)) {
-          const entries = await fsBridge.listDirectory(directoryPath);
-          const matchingEntry = entries.find(
-            (entry) => entry.kind === "file" && entry.name === fileName,
-          );
-
-          if (!matchingEntry) {
-            throw createNotFoundError(`File not found: ${fileName}`);
-          }
-        }
-
         const result = await fsBridge.getFileHandle(
           directoryPath,
           fileName,
@@ -661,7 +648,7 @@ function createElectronDirectoryHandle(
         if (isNotFoundError(error)) {
           throw error;
         }
-        throw createNotFoundError(`File not found: ${fileName}`);
+        throw error;
       }
     },
     getDirectoryHandle: async (directoryName, options) => {
@@ -671,18 +658,6 @@ function createElectronDirectoryHandle(
       }
 
       try {
-        if (!(options?.create ?? false)) {
-          const entries = await fsBridge.listDirectory(directoryPath);
-          const matchingEntry = entries.find(
-            (entry) =>
-              entry.kind === "directory" && entry.name === directoryName,
-          );
-
-          if (!matchingEntry) {
-            throw createNotFoundError(`Directory not found: ${directoryName}`);
-          }
-        }
-
         const result = await fsBridge.getDirectoryHandle(
           directoryPath,
           directoryName,
@@ -693,7 +668,7 @@ function createElectronDirectoryHandle(
         if (isNotFoundError(error)) {
           throw error;
         }
-        throw createNotFoundError(`Directory not found: ${directoryName}`);
+        throw error;
       }
     },
     removeEntry: async (name, options) => {
@@ -856,12 +831,9 @@ export function CardBuilderProvider({ children }: CardBuilderProviderProps) {
   const reloadCardsFromFolder = useCallback(
     async (nextHandle: DirectoryHandleLike, statusPrefix = "Loaded") => {
       const libraryFileName = getLibraryFileName(nextHandle);
-      const [libraryResult, childDirectories, fallbackJsonFileName] =
-        await Promise.all([
-          readLibraryFile(nextHandle),
-          listSubdirectories(nextHandle),
-          findFallbackJsonFileName(nextHandle),
-        ]);
+      const libraryResult = await readLibraryFile(nextHandle);
+      const { subdirectories: childDirectories, fallbackJsonFileName } =
+        await scanDirectoryContents(nextHandle);
       const sorted = sortByNewest(libraryResult.data.cards);
       setLibrarySettings(libraryResult.data.settings);
       setLibraryCards(sorted);
